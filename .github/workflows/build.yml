@@ -1,4 +1,4 @@
-name: Build Iran Roads (20 parts, GeoJSON, MBTiles)
+name: Build Static Tiles ZIP (20 Parts)
 
 on:
   workflow_dispatch:
@@ -17,9 +17,10 @@ jobs:
       - name: Install tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq osmium-tool curl build-essential libsqlite3-dev zlib1g-dev
+          sudo apt-get install -y osmium-tool curl git build-essential libsqlite3-dev zlib1g-dev python3-pip
           git clone --depth=1 https://github.com/felt/tippecanoe.git
           cd tippecanoe && make -j2 && sudo make install
+          pip3 install mbutil
 
       - name: Download Iran OSM
         run: curl -L -o iran.osm.pbf https://download.geofabrik.de/asia/iran-latest.osm.pbf
@@ -131,14 +132,20 @@ jobs:
           osmium export p20.osm.pbf -f geojson -o p20.geojson
           tippecanoe -zg -l roads -Z5 -z15 --no-feature-limit --no-tile-size-limit --force -o p20.mbtiles p20.geojson
 
-      - name: Merge all parts
+      - name: Merge all parts into MBTiles
         run: tile-join --force -o iran-roads.mbtiles p*.mbtiles
 
-      - name: Release
+      - name: Convert MBTiles to static PBF tiles
+        run: |
+          mb-util --image_format=pbf iran-roads.mbtiles tiles
+          cd tiles
+          zip -r ../iran-roads-tiles.zip .
+
+      - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          name: "Iran Roads MBTiles (Full)"
-          tag_name: nightly
-          files: iran-roads.mbtiles
+          name: "Iran Roads Static Tiles"
+          tag_name: tiles
+          files: iran-roads-tiles.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
