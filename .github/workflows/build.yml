@@ -1,0 +1,96 @@
+name: Build Iran Roads (100 parts, full detail)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 0 * * *'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential libsqlite3-dev zlib1g-dev osmium-tool curl parallel bc
+
+      - name: Build tippecanoe
+        run: |
+          git clone --depth=1 https://github.com/felt/tippecanoe.git
+          cd tippecanoe
+          make -j2
+          sudo make install
+          tippecanoe --version
+
+      - name: Download full Iran OSM
+        run: |
+          curl -L -o iran.osm.pbf https://download.geofabrik.de/asia/iran-latest.osm.pbf
+          ls -lh iran.osm.pbf
+
+      - name: Extract roads from Iran
+        run: |
+          osmium tags-filter iran.osm.pbf w/highway -o roads.osm.pbf
+          ls -lh roads.osm.pbf
+
+      - name: Split roads into 100 parts (grid 10x10)
+        run: |
+          for i in {0..9}; do
+            for j in {0..9}; do
+              lon_min=$(echo "44 + $i * 1.9" | bc)
+              lon_max=$(echo "44 + ($i+1) * 1.9" | bc)
+              lat_min=$(echo "25 + $j * 1.5" | bc)
+              lat_max=$(echo "25 + ($j+1) * 1.5" | bc)
+              id=$(printf "%02d%02d" $i $j)
+              osmium extract --bbox $lon_min,$lat_min,$lon_max,$lat_max roads.osm.pbf -o p${id}.osm.pbf 2>/dev/null
+            done
+          done
+          ls p*.osm.pbf | wc -l
+          ls -lh p*.osm.pbf | head -5
+
+      - name: Build all 100 parts (parallel, max 4 jobs)
+        run: |
+          export MAX_TILE_BYTES=5000000
+          export MIN_ZOOM=5
+          export MAX_ZOOM=15
+          
+          build_part() {
+            id=$1
+            if [ -f p${id}.osm.pbf ]; then
+              echo "Processing part ${id}..."
+              osmium export p${id}.osm.pbf -f geojson -o p${id}.geojson 2>/dev/null
+              FEATURES=$(grep -c '"type":"Feature"' p${id}.geojson 2>/dev/null || echo 0)
+              echo "Part ${id}: ${FEATURES} features"
+              tippecanoe -zg -l roads -Z${MIN_ZOOM} -z${MAX_ZOOM} \
+                --no-feature-limit \
+                --no-tile-size-limit \
+                --maximum-tile-bytes=${MAX_TILE_BYTES} \
+                --drop-rate=0 \
+                --force \
+                -o p${id}.mbtiles p${id}.geojson 2>&1 | tail -3
+              echo "Part ${id} done: $(du -h p${id}.mbtiles 2>/dev/null | cut -f1)"
+            fi
+          }
+          export -f build_part
+          
+          # دریافت لیست idها
+          ls p*.osm.pbf | sed 's/p//;s/.osm.pbf//' | parallel -j4 build_part {}
+
+      - name: Merge all parts
+        run: |
+          tile-join --force -o iran-roads.mbtiles p*.mbtiles
+          echo "حجم نهایی:"
+          ls -lh iran-roads.mbtiles
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: "Iran Roads Full Detail 100p"
+          tag_name: nightly
+          files: iran-roads.mbtiles
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
