@@ -1,0 +1,71 @@
+name: Build Iran Roads MBTiles
+
+on:
+  schedule:
+    # هر شب ساعت 00:30 UTC = 4:00 صبح ایران
+    - cron: '30 0 * * *'
+  workflow_dispatch:
+    # این یه دکمه دستی میسازه که هر وقت خواستی بزنی
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    
+    steps:
+      - name: Install osmium and tippecanoe
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y osmium-tool curl
+          git clone --depth=1 https://github.com/felt/tippecanoe.git
+          cd tippecanoe
+          make -j$(nproc)
+          sudo make install
+          cd ..
+      
+      - name: Download Iran OSM
+        run: |
+          echo "دانلود OSM ایران..."
+          curl -L -o iran.osm.pbf https://download.geofabrik.de/asia/iran-latest.osm.pbf
+          echo "حجم فایل دانلود شده:"
+          du -h iran.osm.pbf
+      
+      - name: Extract roads only
+        run: |
+          echo "استخراج فقط معابر..."
+          osmium tags-filter iran.osm.pbf \
+            w/highway=motorway,motorway_link,trunk,trunk_link,primary,primary_link,secondary,secondary_link,tertiary,tertiary_link,residential,living_street,service,unclassified,pedestrian,alley \
+            -o roads.osm.pbf
+          echo "حجم معابر:"
+          du -h roads.osm.pbf
+      
+      - name: Build MBTiles
+        run: |
+          echo "ساخت MBTiles..."
+          tippecanoe -zg \
+            --name="MapCafe Iran Roads" \
+            --layer=roads \
+            --minimum-zoom=5 \
+            --maximum-zoom=14 \
+            --no-feature-limit \
+            --no-tile-size-limit \
+            --force \
+            -o iran-roads.mbtiles \
+            roads.osm.pbf
+          echo "حجم نهایی:"
+          du -h iran-roads.mbtiles
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: "Iran Roads - $(date +'%Y-%m-%d')"
+          tag_name: nightly
+          body: "ساخته شد در $(date +'%Y-%m-%d %H:%M') - حجم: $(du -h iran-roads.mbtiles | cut -f1)"
+          files: iran-roads.mbtiles
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Cleanup temp files
+        run: |
+          rm -f iran.osm.pbf roads.osm.pbf
+          echo "پاکسازی انجام شد"
