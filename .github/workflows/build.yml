@@ -1,0 +1,80 @@
+name: Build Iran Roads 5 Parts
+
+on:
+  schedule:
+    - cron: '30 0 * * *'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+    
+    steps:
+      - name: Install tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y osmium-tool curl
+          git clone --depth=1 https://github.com/felt/tippecanoe.git
+          cd tippecanoe
+          make -j2
+          sudo make install
+      
+      - name: Download Iran OSM
+        run: |
+          curl -L -o iran.osm.pbf https://download.geofabrik.de/asia/iran-latest.osm.pbf
+          ls -lh iran.osm.pbf
+      
+      - name: Extract roads only
+        run: |
+          osmium tags-filter iran.osm.pbf w/highway -o roads.osm.pbf
+          ls -lh roads.osm.pbf
+      
+      - name: Split into 5 parts
+        run: |
+          osmium extract --bbox 44,34,51,40 roads.osm.pbf -o p1.osm.pbf
+          osmium extract --bbox 51,34,63,40 roads.osm.pbf -o p2.osm.pbf
+          osmium extract --bbox 46,29,54,36 roads.osm.pbf -o p3.osm.pbf
+          osmium extract --bbox 44,25,54,30 roads.osm.pbf -o p4.osm.pbf
+          osmium extract --bbox 54,25,63,34 roads.osm.pbf -o p5.osm.pbf
+          ls -lh p*.osm.pbf
+      
+      - name: Build part 1
+        run: |
+          tippecanoe -zg --layer=roads --minimum-zoom=5 --maximum-zoom=14 --drop-densest-as-needed --no-feature-limit --no-tile-size-limit --force -o p1.mbtiles p1.osm.pbf
+          ls -lh p1.mbtiles
+      
+      - name: Build part 2
+        run: |
+          tippecanoe -zg --layer=roads --minimum-zoom=5 --maximum-zoom=14 --drop-densest-as-needed --no-feature-limit --no-tile-size-limit --force -o p2.mbtiles p2.osm.pbf
+          ls -lh p2.mbtiles
+      
+      - name: Build part 3
+        run: |
+          tippecanoe -zg --layer=roads --minimum-zoom=5 --maximum-zoom=14 --drop-densest-as-needed --no-feature-limit --no-tile-size-limit --force -o p3.mbtiles p3.osm.pbf
+          ls -lh p3.mbtiles
+      
+      - name: Build part 4
+        run: |
+          tippecanoe -zg --layer=roads --minimum-zoom=5 --maximum-zoom=14 --drop-densest-as-needed --no-feature-limit --no-tile-size-limit --force -o p4.mbtiles p4.osm.pbf
+          ls -lh p4.mbtiles
+      
+      - name: Build part 5
+        run: |
+          tippecanoe -zg --layer=roads --minimum-zoom=5 --maximum-zoom=14 --drop-densest-as-needed --no-feature-limit --no-tile-size-limit --force -o p5.mbtiles p5.osm.pbf
+          ls -lh p5.mbtiles
+      
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: "Iran Roads"
+          tag_name: nightly
+          body: "نقشه معابر ایران - ۵ بخش"
+          files: |
+            p1.mbtiles
+            p2.mbtiles
+            p3.mbtiles
+            p4.mbtiles
+            p5.mbtiles
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
