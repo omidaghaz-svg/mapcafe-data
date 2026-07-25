@@ -1,0 +1,56 @@
+name: Build Tehran (Fixed)
+
+on: workflow_dispatch
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential libsqlite3-dev zlib1g-dev osmium-tool curl
+
+      - name: Build tippecanoe
+        run: |
+          git clone --depth=1 https://github.com/felt/tippecanoe.git
+          cd tippecanoe
+          make -j2
+          sudo make install
+          tippecanoe --version
+
+      - name: Download Tehran OSM
+        run: |
+          curl -L -o tehran.osm.pbf https://download.geofabrik.de/asia/iran/tehran-latest.osm.pbf
+          ls -lh tehran.osm.pbf
+
+      - name: Extract roads & convert to GeoJSON
+        run: |
+          # فیلتر معابر
+          osmium tags-filter tehran.osm.pbf w/highway -o roads.osm.pbf
+          # تبدیل به GeoJSON (فرمتی که tippecanoe می‌فهمد)
+          osmium export roads.osm.pbf -f geojson -o roads.geojson
+          ls -lh roads.geojson
+
+      - name: Build MBTiles
+        run: |
+          tippecanoe -zg \
+            --layer=roads \
+            --minimum-zoom=5 \
+            --maximum-zoom=15 \
+            --drop-densest-as-needed \
+            --force \
+            -o tehran-roads.mbtiles \
+            roads.geojson
+          ls -lh tehran-roads.mbtiles
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: "Tehran Roads (GeoJSON fix)"
+          tag_name: tehran
+          files: tehran-roads.mbtiles
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
