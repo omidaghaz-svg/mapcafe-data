@@ -1,0 +1,115 @@
+name: Build Iran Roads (10 parts, zoom 15)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '30 0 * * *'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 180
+
+    steps:
+      - name: Install dependencies
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq build-essential libsqlite3-dev zlib1g-dev osmium-tool curl
+
+      - name: Build tippecanoe
+        run: |
+          git clone --depth=1 https://github.com/felt/tippecanoe.git
+          cd tippecanoe
+          make -j2
+          sudo make install
+          tippecanoe --version
+
+      - name: Download full Iran OSM
+        run: |
+          curl -L -o iran.osm.pbf https://download.geofabrik.de/asia/iran-latest.osm.pbf
+          ls -lh iran.osm.pbf
+
+      - name: Extract roads from Iran
+        run: |
+          osmium tags-filter iran.osm.pbf w/highway -o roads.osm.pbf
+          ls -lh roads.osm.pbf
+
+      - name: Split roads into 10 parts
+        run: |
+          osmium extract --bbox 44,37,49,40 roads.osm.pbf -o p1.osm.pbf
+          osmium extract --bbox 49,37,54,40 roads.osm.pbf -o p2.osm.pbf
+          osmium extract --bbox 54,37,63,40 roads.osm.pbf -o p3.osm.pbf
+          osmium extract --bbox 44,34,49,37 roads.osm.pbf -o p4.osm.pbf
+          osmium extract --bbox 49,34,56,37 roads.osm.pbf -o p5.osm.pbf
+          osmium extract --bbox 56,34,63,37 roads.osm.pbf -o p6.osm.pbf
+          osmium extract --bbox 44,29,49,34 roads.osm.pbf -o p7.osm.pbf
+          osmium extract --bbox 49,29,56,34 roads.osm.pbf -o p8.osm.pbf
+          osmium extract --bbox 56,29,63,34 roads.osm.pbf -o p9.osm.pbf
+          osmium extract --bbox 44,25,63,29 roads.osm.pbf -o p10.osm.pbf
+
+      - name: Build part 1
+        run: |
+          osmium export p1.osm.pbf -f geojson -o p1.geojson
+          tippecanoe -zg --layer=roads --minimum-zoom=5 --maximum-zoom=15 --drop-densest-as-needed --force -o p1.mbtiles p1.geojson
+
+      - name: Build part 2
+        run: |
+          osmium export p2.osm.pbf -f geojson -o p2.geojson
+          tippecanoe -zg --layer=roads --minimum-zoom=5 --maximum-zoom=15 --drop-densest-as-needed --force -o p2.mbtiles p2.geojson
+
+      - name: Build part 3
+        run: |
+          osmium export p3.osm.pbf -f geojson -o p3.geojson
+          tippecanoe -zg --layer=roads --minimum-zoom=5 --maximum-zoom=15 --drop-densest-as-needed --force -o p3.mbtiles p3.geojson
+
+      - name: Build part 4
+        run: |
+          osmium export p4.osm.pbf -f geojson -o p4.geojson
+          tippecanoe -zg --layer=roads --minimum-zoom=5 --maximum-zoom=15 --drop-densest-as-needed --force -o p4.mbtiles p4.geojson
+
+      - name: Build part 5
+        run: |
+          osmium export p5.osm.pbf -f geojson -o p5.geojson
+          tippecanoe -zg --layer=roads --minimum-zoom=5 --maximum-zoom=15 --drop-densest-as-needed --force -o p5.mbtiles p5.geojson
+
+      - name: Build part 6
+        run: |
+          osmium export p6.osm.pbf -f geojson -o p6.geojson
+          tippecanoe -zg --layer=roads --minimum-zoom=5 --maximum-zoom=15 --drop-densest-as-needed --force -o p6.mbtiles p6.geojson
+
+      - name: Build part 7
+        run: |
+          osmium export p7.osm.pbf -f geojson -o p7.geojson
+          tippecanoe -zg --layer=roads --minimum-zoom=5 --maximum-zoom=15 --drop-densest-as-needed --force -o p7.mbtiles p7.geojson
+
+      - name: Build part 8
+        run: |
+          osmium export p8.osm.pbf -f geojson -o p8.geojson
+          tippecanoe -zg --layer=roads --minimum-zoom=5 --maximum-zoom=15 --drop-densest-as-needed --force -o p8.mbtiles p8.geojson
+
+      - name: Build part 9
+        run: |
+          osmium export p9.osm.pbf -f geojson -o p9.geojson
+          tippecanoe -zg --layer=roads --minimum-zoom=5 --maximum-zoom=15 --drop-densest-as-needed --force -o p9.mbtiles p9.geojson
+
+      - name: Build part 10
+        run: |
+          osmium export p10.osm.pbf -f geojson -o p10.geojson
+          tippecanoe -zg --layer=roads --minimum-zoom=5 --maximum-zoom=15 --drop-densest-as-needed --force -o p10.mbtiles p10.geojson
+
+      - name: Merge all parts
+        run: |
+          tile-join --force -o iran-roads.mbtiles p*.mbtiles
+          ls -lh iran-roads.mbtiles
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        with:
+          name: "Iran Roads Zoom 15"
+          tag_name: nightly
+          files: iran-roads.mbtiles
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
