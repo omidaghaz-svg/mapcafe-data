@@ -1,4 +1,4 @@
-name: Build PMTiles + Persian Fonts ZIP (Final)
+name: Build PMTiles + Persian Fonts ZIP (Stable)
 
 on:
   workflow_dispatch:
@@ -16,7 +16,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y osmium-tool curl git build-essential libsqlite3-dev zlib1g-dev
+          sudo apt-get install -y osmium-tool curl git build-essential libsqlite3-dev zlib1g-dev golang-go
 
       - name: Build tippecanoe from source
         run: |
@@ -25,8 +25,10 @@ jobs:
           make -j$(nproc)
           sudo make install
 
-      - name: Install pmtiles (via npm)
-        run: sudo npm install -g pmtiles@latest
+      - name: Install pmtiles (from source)
+        run: |
+          go install github.com/protomaps/go-pmtiles/cmd/pmtiles@latest
+          sudo cp ~/go/bin/pmtiles /usr/local/bin/
 
       - name: Download Iran OSM
         run: curl -L -o iran.osm.pbf https://download.geofabrik.de/asia/iran-latest.osm.pbf
@@ -74,9 +76,9 @@ jobs:
         run: |
           mkdir -p fonts/Vazirmatn
           cd fonts/Vazirmatn
-          curl -sL https://github.com/rastikerdar/vazirmatn/raw/main/fonts/webfonts/Vazirmatn-Medium.pbf -O
-          curl -sL https://github.com/rastikerdar/vazirmatn/raw/main/fonts/webfonts/Vazirmatn-Regular.pbf -O
-          curl -sL https://github.com/rastikerdar/vazirmatn/raw/main/fonts/webfonts/Vazirmatn-Bold.pbf -O
+          curl -sL --retry 3 https://github.com/rastikerdar/vazirmatn/raw/main/fonts/webfonts/Vazirmatn-Medium.pbf -O
+          curl -sL --retry 3 https://github.com/rastikerdar/vazirmatn/raw/main/fonts/webfonts/Vazirmatn-Regular.pbf -O
+          curl -sL --retry 3 https://github.com/rastikerdar/vazirmatn/raw/main/fonts/webfonts/Vazirmatn-Bold.pbf -O
           cd ../..
 
       - name: Create final ZIP bundle
