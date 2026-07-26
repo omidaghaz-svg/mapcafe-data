@@ -1,100 +1,55 @@
-name: Build PMTiles + Persian Fonts ZIP (Stable)
+name: Build Iran Vector Tiles
 
 on:
-  workflow_dispatch:
-  schedule:
-    - cron: '30 0 * * *'
-
-permissions:
-  contents: write
+  workflow_dispatch:   # فقط دستی اجرا میشه
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 300
+    timeout-minutes: 360
+
     steps:
-      - name: Install system dependencies
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Download Iran OSM data
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y osmium-tool curl git build-essential libsqlite3-dev zlib1g-dev golang-go
+          mkdir -p openmaptiles/data
+          wget -q -O openmaptiles/data/iran-latest.osm.pbf https://download.geofabrik.de/asia/iran-latest.osm.pbf
 
-      - name: Build tippecanoe from source
+      - name: Clone OpenMapTiles
         run: |
-          git clone --depth=1 https://github.com/felt/tippecanoe.git
-          cd tippecanoe
-          make -j$(nproc)
-          sudo make install
+          git clone --depth=1 https://github.com/openmaptiles/openmaptiles.git openmaptiles_repo
+          mkdir -p openmaptiles_repo/data
+          cp openmaptiles/data/iran-latest.osm.pbf openmaptiles_repo/data/
 
-      - name: Install pmtiles (from source)
+      - name: Generate tiles (zoom 0–12)
+        working-directory: openmaptiles_repo
         run: |
-          go install github.com/protomaps/go-pmtiles/cmd/pmtiles@latest
-          sudo cp ~/go/bin/pmtiles /usr/local/bin/
+          echo "MAX_ZOOM=12" >> .env
+          echo "DIFF_MODE=false" >> .env
+          ./quickstart.sh iran
 
-      - name: Download Iran OSM
-        run: curl -L -o iran.osm.pbf https://download.geofabrik.de/asia/iran-latest.osm.pbf
-
-      - name: Extract roads only
-        run: osmium tags-filter iran.osm.pbf w/highway -o roads.osm.pbf
-
-      - name: Split into 20 parts (full coverage)
+      - name: Install mbutils and extract tiles
         run: |
-          osmium extract --bbox 44.0,37.5,49.0,40.0 roads.osm.pbf -o p01.osm.pbf
-          osmium extract --bbox 49.0,37.5,54.0,40.0 roads.osm.pbf -o p02.osm.pbf
-          osmium extract --bbox 54.0,37.5,59.0,40.0 roads.osm.pbf -o p03.osm.pbf
-          osmium extract --bbox 59.0,37.5,63.0,40.0 roads.osm.pbf -o p04.osm.pbf
-          osmium extract --bbox 44.0,35.0,49.0,37.5 roads.osm.pbf -o p05.osm.pbf
-          osmium extract --bbox 49.0,35.0,54.0,37.5 roads.osm.pbf -o p06.osm.pbf
-          osmium extract --bbox 54.0,35.0,59.0,37.5 roads.osm.pbf -o p07.osm.pbf
-          osmium extract --bbox 59.0,35.0,63.0,37.5 roads.osm.pbf -o p08.osm.pbf
-          osmium extract --bbox 44.0,32.5,49.0,35.0 roads.osm.pbf -o p09.osm.pbf
-          osmium extract --bbox 49.0,32.5,54.0,35.0 roads.osm.pbf -o p10.osm.pbf
-          osmium extract --bbox 54.0,32.5,59.0,35.0 roads.osm.pbf -o p11.osm.pbf
-          osmium extract --bbox 59.0,32.5,63.0,35.0 roads.osm.pbf -o p12.osm.pbf
-          osmium extract --bbox 44.0,30.0,49.0,32.5 roads.osm.pbf -o p13.osm.pbf
-          osmium extract --bbox 49.0,30.0,54.0,32.5 roads.osm.pbf -o p14.osm.pbf
-          osmium extract --bbox 54.0,30.0,59.0,32.5 roads.osm.pbf -o p15.osm.pbf
-          osmium extract --bbox 59.0,30.0,63.0,32.5 roads.osm.pbf -o p16.osm.pbf
-          osmium extract --bbox 44.0,27.0,49.0,30.0 roads.osm.pbf -o p17.osm.pbf
-          osmium extract --bbox 49.0,27.0,54.0,30.0 roads.osm.pbf -o p18.osm.pbf
-          osmium extract --bbox 54.0,27.0,59.0,30.0 roads.osm.pbf -o p19.osm.pbf
-          osmium extract --bbox 59.0,27.0,63.0,30.0 roads.osm.pbf -o p20.osm.pbf
+          pip install mbutils
+          mb-util --image_format=pbf openmaptiles_repo/data/tiles.mbtiles tiles_extracted
 
-      - name: Build all parts (GeoJSON)
+      - name: Prepare final package
         run: |
-          for i in $(seq -w 1 20); do
-            osmium export p${i}.osm.pbf -f geojson -o p${i}.geojson
-            tippecanoe -zg -l roads -Z5 -z15 --no-feature-limit --no-tile-size-limit --force -o p${i}.mbtiles p${i}.geojson
-          done
+          mkdir iran-map
+          cp -r map-files/* iran-map/
+          rm -rf iran-map/tiles
+          mv tiles_extracted iran-map/tiles
 
-      - name: Merge into final MBTiles
-        run: tile-join --force -o iran-roads.mbtiles p*.mbtiles
-
-      - name: Convert MBTiles to PMTiles
-        run: pmtiles convert iran-roads.mbtiles iran-roads.pmtiles
-
-      - name: Download Persian fonts (Vazirmatn)
+      - name: Create tar.gz archive
         run: |
-          mkdir -p fonts/Vazirmatn
-          cd fonts/Vazirmatn
-          curl -sL --retry 3 https://github.com/rastikerdar/vazirmatn/raw/main/fonts/webfonts/Vazirmatn-Medium.pbf -O
-          curl -sL --retry 3 https://github.com/rastikerdar/vazirmatn/raw/main/fonts/webfonts/Vazirmatn-Regular.pbf -O
-          curl -sL --retry 3 https://github.com/rastikerdar/vazirmatn/raw/main/fonts/webfonts/Vazirmatn-Bold.pbf -O
-          cd ../..
+          cd iran-map
+          tar -czf ../iran-map.tar.gz .
 
-      - name: Create final ZIP bundle
-        run: zip -r mapcafe-offline.zip iran-roads.pmtiles fonts
-
-      - name: Upload artifact
+      - name: Upload artifact (download from Actions page)
         uses: actions/upload-artifact@v4
         with:
-          name: mapcafe-offline
-          path: mapcafe-offline.zip
-
-      - name: Create GitHub Release
-        uses: softprops/action-gh-release@v1
-        with:
-          name: "MapCafe Offline Bundle"
-          tag_name: nightly
-          files: mapcafe-offline.zip
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          name: iran-map
+          path: iran-map.tar.gz
+          retention-days: 7
