@@ -1,7 +1,7 @@
 name: Build Iran Vector Tiles
 
 on:
-  workflow_dispatch:   # فقط دستی اجرا میشه
+  workflow_dispatch:
 
 jobs:
   build:
@@ -9,15 +9,37 @@ jobs:
     timeout-minutes: 360
 
     steps:
-      - name: Checkout repo
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download Iran OSM data
+      # کش فایل OSM ایران
+      - name: Cache Iran OSM data
+        id: cache-osm
+        uses: actions/cache@v4
+        with:
+          path: openmaptiles/data/iran-latest.osm.pbf
+          key: iran-osm-${{ hashFiles('.github/workflows/build.yml') }}
+          restore-keys: |
+            iran-osm-
+
+      - name: Download Iran OSM data (if not cached)
+        if: steps.cache-osm.outputs.cache-hit != 'true'
         run: |
           mkdir -p openmaptiles/data
           wget -q -O openmaptiles/data/iran-latest.osm.pbf https://download.geofabrik.de/asia/iran-latest.osm.pbf
 
-      - name: Clone OpenMapTiles
+      # کش مخزن OpenMapTiles
+      - name: Cache OpenMapTiles repo
+        id: cache-repo
+        uses: actions/cache@v4
+        with:
+          path: openmaptiles_repo
+          key: openmaptiles-repo-${{ hashFiles('.github/workflows/build.yml') }}
+          restore-keys: |
+            openmaptiles-repo-
+
+      - name: Clone OpenMapTiles (if not cached)
+        if: steps.cache-repo.outputs.cache-hit != 'true'
         run: |
           git clone --depth=1 https://github.com/openmaptiles/openmaptiles.git openmaptiles_repo
           mkdir -p openmaptiles_repo/data
@@ -42,12 +64,21 @@ jobs:
           rm -rf iran-map/tiles
           mv tiles_extracted iran-map/tiles
 
+      - name: Download glyphs (font) for road labels
+        run: |
+          git clone --depth=1 --filter=blob:none --sparse https://github.com/openmaptiles/fonts.git fonts_repo
+          cd fonts_repo
+          git sparse-checkout set "Noto Sans Arabic Regular"
+          cd ..
+          mkdir -p iran-map/glyphs
+          cp -r fonts_repo/"Noto Sans Arabic Regular" iran-map/glyphs/
+
       - name: Create tar.gz archive
         run: |
           cd iran-map
           tar -czf ../iran-map.tar.gz .
 
-      - name: Upload artifact (download from Actions page)
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: iran-map
