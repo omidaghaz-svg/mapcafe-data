@@ -1,4 +1,4 @@
-name: Build PMTiles + Persian Fonts ZIP
+name: Build PMTiles + Persian Fonts ZIP (Final)
 
 on:
   workflow_dispatch:
@@ -11,25 +11,30 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 240
+    timeout-minutes: 300
     steps:
-      - name: Install tools
+      - name: Install system dependencies
         run: |
           sudo apt-get update -qq
           sudo apt-get install -y osmium-tool curl git build-essential libsqlite3-dev zlib1g-dev
-          git clone --depth=1 https://github.com/felt/tippecanoe.git
-          cd tippecanoe && make -j2 && sudo make install
 
-      - name: Download pmtiles binary
+      - name: Build tippecanoe from source
         run: |
-          curl -L -o pmtiles.tar.gz https://github.com/protomaps/go-pmtiles/releases/latest/download/pmtiles_linux_amd64.tar.gz
-          tar -xzf pmtiles.tar.gz
+          git clone --depth=1 https://github.com/felt/tippecanoe.git
+          cd tippecanoe
+          make -j$(nproc)
+          sudo make install
+
+      - name: Install pmtiles (direct binary download)
+        run: |
+          curl -L -o pmtiles https://github.com/protomaps/go-pmtiles/releases/latest/download/pmtiles_linux_amd64
+          chmod +x pmtiles
           sudo mv pmtiles /usr/local/bin/
 
       - name: Download Iran OSM
         run: curl -L -o iran.osm.pbf https://download.geofabrik.de/asia/iran-latest.osm.pbf
 
-      - name: Extract roads
+      - name: Extract roads only
         run: osmium tags-filter iran.osm.pbf w/highway -o roads.osm.pbf
 
       - name: Split into 20 parts (full coverage)
@@ -55,17 +60,17 @@ jobs:
           osmium extract --bbox 54.0,27.0,59.0,30.0 roads.osm.pbf -o p19.osm.pbf
           osmium extract --bbox 59.0,27.0,63.0,30.0 roads.osm.pbf -o p20.osm.pbf
 
-      - name: Build parts (GeoJSON)
+      - name: Build all parts (GeoJSON)
         run: |
           for i in $(seq -w 1 20); do
             osmium export p${i}.osm.pbf -f geojson -o p${i}.geojson
             tippecanoe -zg -l roads -Z5 -z15 --no-feature-limit --no-tile-size-limit --force -o p${i}.mbtiles p${i}.geojson
           done
 
-      - name: Merge into MBTiles
+      - name: Merge into final MBTiles
         run: tile-join --force -o iran-roads.mbtiles p*.mbtiles
 
-      - name: Convert to PMTiles (fixed binary)
+      - name: Convert MBTiles to PMTiles
         run: pmtiles convert iran-roads.mbtiles iran-roads.pmtiles
 
       - name: Download Persian fonts (Vazirmatn)
@@ -75,20 +80,18 @@ jobs:
           curl -sL https://github.com/rastikerdar/vazirmatn/raw/main/fonts/webfonts/Vazirmatn-Medium.pbf -O
           curl -sL https://github.com/rastikerdar/vazirmatn/raw/main/fonts/webfonts/Vazirmatn-Regular.pbf -O
           curl -sL https://github.com/rastikerdar/vazirmatn/raw/main/fonts/webfonts/Vazirmatn-Bold.pbf -O
-          curl -sL https://github.com/rastikerdar/vazirmatn/raw/main/fonts/webfonts/Vazirmatn-Thin.pbf -O
-          curl -sL https://github.com/rastikerdar/vazirmatn/raw/main/fonts/webfonts/Vazirmatn-Light.pbf -O
           cd ../..
 
-      - name: Create final ZIP
+      - name: Create final ZIP bundle
         run: zip -r mapcafe-offline.zip iran-roads.pmtiles fonts
 
-      - name: Upload artifact (for manual download)
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: mapcafe-offline
           path: mapcafe-offline.zip
 
-      - name: Create Release
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v1
         with:
           name: "MapCafe Offline Bundle"
