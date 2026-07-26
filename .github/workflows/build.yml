@@ -20,6 +20,12 @@ jobs:
           git clone --depth=1 https://github.com/felt/tippecanoe.git
           cd tippecanoe && make -j2 && sudo make install
 
+      - name: Download pmtiles binary
+        run: |
+          curl -L -o pmtiles.tar.gz https://github.com/protomaps/go-pmtiles/releases/latest/download/pmtiles_linux_amd64.tar.gz
+          tar -xzf pmtiles.tar.gz
+          sudo mv pmtiles /usr/local/bin/
+
       - name: Download Iran OSM
         run: curl -L -o iran.osm.pbf https://download.geofabrik.de/asia/iran-latest.osm.pbf
 
@@ -59,8 +65,8 @@ jobs:
       - name: Merge into MBTiles
         run: tile-join --force -o iran-roads.mbtiles p*.mbtiles
 
-      - name: Convert to PMTiles (fixed)
-        run: npx pmtiles@latest convert iran-roads.mbtiles iran-roads.pmtiles
+      - name: Convert to PMTiles (fixed binary)
+        run: pmtiles convert iran-roads.mbtiles iran-roads.pmtiles
 
       - name: Download Persian fonts (Vazirmatn)
         run: |
