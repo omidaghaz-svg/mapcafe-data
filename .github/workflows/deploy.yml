@@ -1,7 +1,7 @@
 name: Build and Deploy Iran Vector Tiles
 
 on:
-  workflow_dispatch:   # فقط دستی اجرا میشه
+  workflow_dispatch:
 
 jobs:
   build-and-deploy:
@@ -20,6 +20,7 @@ jobs:
       - name: Clone OpenMapTiles
         run: |
           git clone --depth=1 https://github.com/openmaptiles/openmaptiles.git openmaptiles_repo
+          mkdir -p openmaptiles_repo/data
           cp openmaptiles/data/iran-latest.osm.pbf openmaptiles_repo/data/
 
       - name: Set environment and generate tiles
@@ -38,11 +39,8 @@ jobs:
         run: |
           mkdir deploy
           cp -r map-files/* deploy/
-          # جایگزینی پوشه tiles خالی با تایل‌های استخراج‌شده
           rm -rf deploy/tiles
           mv tiles_extracted deploy/tiles
-          # (اگر index.html نمی‌خوای، خط بعد رو می‌تونی حذف کنی)
-          # ما از style.json مسیرها رو نسبی می‌ذاریم، پس نیازی به تغییر نیست.
 
       - name: Create tar.gz archive
         run: |
@@ -52,10 +50,9 @@ jobs:
       - name: Upload archive to cPanel via FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.4
         with:
-          server: ${{ secrets.FTP_HOST }}
-          username: ${{ secrets.FTP_USER }}
-          password: ${{ secrets.FTP_PASSWORD }}
+          server: ${{ ftp.mapcafe.ir }}
+          username: ${{ zhcaksdz }}
+          password: ${{ B4z8fx5yV7 }}
           local-dir: ./iran-map.tar.gz
-          server-dir: ${{ secrets.FTP_UPLOAD_PATH }}  # مثلاً /public_html/wp-content/uploads/
-          # توجه: این اکشن فایل رو به‌عنوان یک فایل آپلود می‌کنه (نه دایرکتوری)
+          server-dir: ${{ /public_html/wp-content/uploads/ }}
           dry-run: false
