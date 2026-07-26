@@ -57,14 +57,180 @@ jobs:
           pip install mbutil
           mb-util --image_format=pbf openmaptiles_repo/data/tiles.mbtiles tiles_extracted
 
-      - name: Prepare final package
+      - name: Download MapLibre GL JS library
         run: |
-          mkdir iran-map
-          cp -r map-files/* iran-map/
-          rm -rf iran-map/tiles
+          mkdir -p iran-map/lib
+          wget -q -O iran-map/lib/maplibre-gl.js https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js
+          wget -q -O iran-map/lib/maplibre-gl.css https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css
+
+      - name: Create style.json
+        run: |
+          cat > iran-map/style.json << 'STYLEEOF'
+          {
+            "version": 8,
+            "glyphs": "glyphs/{fontstack}/{range}.pbf",
+            "sources": {
+              "iran": {
+                "type": "vector",
+                "tiles": ["tiles/{z}/{x}/{y}.pbf"],
+                "minzoom": 0,
+                "maxzoom": 14
+              }
+            },
+            "layers": [
+              {
+                "id": "background",
+                "type": "background",
+                "paint": { "background-color": "#fafafa" }
+              },
+              {
+                "id": "road-motorway",
+                "type": "line",
+                "source": "iran",
+                "source-layer": "transportation",
+                "filter": ["==", "class", "motorway"],
+                "paint": {
+                  "line-color": "#ff6b6b",
+                  "line-width": ["interpolate", ["linear"], ["zoom"],
+                    5, 1,
+                    12, 4
+                  ]
+                }
+              },
+              {
+                "id": "road-trunk",
+                "type": "line",
+                "source": "iran",
+                "source-layer": "transportation",
+                "filter": ["==", "class", "trunk"],
+                "paint": {
+                  "line-color": "#ff9f43",
+                  "line-width": ["interpolate", ["linear"], ["zoom"],
+                    5, 0.8,
+                    12, 3
+                  ]
+                }
+              },
+              {
+                "id": "road-primary",
+                "type": "line",
+                "source": "iran",
+                "source-layer": "transportation",
+                "filter": ["==", "class", "primary"],
+                "paint": {
+                  "line-color": "#feca57",
+                  "line-width": ["interpolate", ["linear"], ["zoom"],
+                    6, 1,
+                    12, 2.5
+                  ]
+                }
+              },
+              {
+                "id": "road-secondary",
+                "type": "line",
+                "source": "iran",
+                "source-layer": "transportation",
+                "filter": ["==", "class", "secondary"],
+                "paint": {
+                  "line-color": "#ffffff",
+                  "line-width": ["interpolate", ["linear"], ["zoom"],
+                    7, 0.8,
+                    12, 2
+                  ]
+                }
+              },
+              {
+                "id": "road-tertiary",
+                "type": "line",
+                "source": "iran",
+                "source-layer": "transportation",
+                "filter": ["==", "class", "tertiary"],
+                "paint": {
+                  "line-color": "#ffffff",
+                  "line-width": ["interpolate", ["linear"], ["zoom"],
+                    8, 0.6,
+                    12, 1.5
+                  ]
+                }
+              },
+              {
+                "id": "road-minor",
+                "type": "line",
+                "source": "iran",
+                "source-layer": "transportation",
+                "filter": ["in", "class", "minor", "service", "track", "path"],
+                "paint": {
+                  "line-color": "#eaeaea",
+                  "line-width": ["interpolate", ["linear"], ["zoom"],
+                    10, 0.4,
+                    14, 1
+                  ]
+                }
+              },
+              {
+                "id": "road-labels",
+                "type": "symbol",
+                "source": "iran",
+                "source-layer": "transportation_name",
+                "filter": ["in", "class", "motorway", "trunk", "primary", "secondary", "tertiary", "minor", "service", "track", "path"],
+                "minzoom": 12,
+                "layout": {
+                  "text-field": ["coalesce", ["get", "name:fa"], ["get", "name"]],
+                  "text-font": ["Noto Sans Arabic Regular"],
+                  "text-size": 10,
+                  "text-optional": true
+                },
+                "paint": {
+                  "text-color": "#222222",
+                  "text-halo-color": "#ffffff",
+                  "text-halo-width": 1.5
+                }
+              },
+              {
+                "id": "place-city",
+                "type": "symbol",
+                "source": "iran",
+                "source-layer": "place",
+                "filter": ["==", "class", "city"],
+                "minzoom": 4,
+                "layout": {
+                  "text-field": ["coalesce", ["get", "name:fa"], ["get", "name"]],
+                  "text-font": ["Noto Sans Arabic Regular"],
+                  "text-size": 14
+                },
+                "paint": {
+                  "text-color": "#111111",
+                  "text-halo-color": "#ffffff",
+                  "text-halo-width": 1.5
+                }
+              },
+              {
+                "id": "place-town",
+                "type": "symbol",
+                "source": "iran",
+                "source-layer": "place",
+                "filter": ["==", "class", "town"],
+                "minzoom": 7,
+                "layout": {
+                  "text-field": ["coalesce", ["get", "name:fa"], ["get", "name"]],
+                  "text-font": ["Noto Sans Arabic Regular"],
+                  "text-size": 11
+                },
+                "paint": {
+                  "text-color": "#333333",
+                  "text-halo-color": "#ffffff",
+                  "text-halo-width": 1
+                }
+              }
+            ]
+          }
+          STYLEEOF
+
+      - name: Move tiles into iran-map
+        run: |
           mv tiles_extracted iran-map/tiles
 
-      - name: Download glyphs (font) for road labels
+      - name: Download glyphs (font) for labels
         run: |
           git clone --depth=1 --filter=blob:none --sparse https://github.com/openmaptiles/fonts.git fonts_repo
           cd fonts_repo
