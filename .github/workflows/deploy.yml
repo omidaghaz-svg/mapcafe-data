@@ -1,0 +1,61 @@
+name: Build and Deploy Iran Vector Tiles
+
+on:
+  workflow_dispatch:   # فقط دستی اجرا میشه
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Download Iran OSM data
+        run: |
+          mkdir -p openmaptiles/data
+          wget -q -O openmaptiles/data/iran-latest.osm.pbf https://download.geofabrik.de/asia/iran-latest.osm.pbf
+
+      - name: Clone OpenMapTiles
+        run: |
+          git clone --depth=1 https://github.com/openmaptiles/openmaptiles.git openmaptiles_repo
+          cp openmaptiles/data/iran-latest.osm.pbf openmaptiles_repo/data/
+
+      - name: Set environment and generate tiles
+        working-directory: openmaptiles_repo
+        run: |
+          echo "MAX_ZOOM=12" >> .env
+          echo "DIFF_MODE=false" >> .env
+          ./quickstart.sh iran
+
+      - name: Install mbutils and extract tiles
+        run: |
+          pip install mbutils
+          mb-util --image_format=pbf openmaptiles_repo/data/tiles.mbtiles tiles_extracted
+
+      - name: Prepare deployment folder
+        run: |
+          mkdir deploy
+          cp -r map-files/* deploy/
+          # جایگزینی پوشه tiles خالی با تایل‌های استخراج‌شده
+          rm -rf deploy/tiles
+          mv tiles_extracted deploy/tiles
+          # (اگر index.html نمی‌خوای، خط بعد رو می‌تونی حذف کنی)
+          # ما از style.json مسیرها رو نسبی می‌ذاریم، پس نیازی به تغییر نیست.
+
+      - name: Create tar.gz archive
+        run: |
+          cd deploy
+          tar -czf ../iran-map.tar.gz .
+
+      - name: Upload archive to cPanel via FTP
+        uses: SamKirkland/FTP-Deploy-Action@v4.3.4
+        with:
+          server: ${{ secrets.FTP_HOST }}
+          username: ${{ secrets.FTP_USER }}
+          password: ${{ secrets.FTP_PASSWORD }}
+          local-dir: ./iran-map.tar.gz
+          server-dir: ${{ secrets.FTP_UPLOAD_PATH }}  # مثلاً /public_html/wp-content/uploads/
+          # توجه: این اکشن فایل رو به‌عنوان یک فایل آپلود می‌کنه (نه دایرکتوری)
+          dry-run: false
