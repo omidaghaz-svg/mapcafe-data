@@ -1,4 +1,4 @@
-name: Build PMTiles + Persian Fonts ZIP (Stable)
+name: Build PMTiles + Persian Fonts ZIP (Final)
 
 on:
   workflow_dispatch:
@@ -25,9 +25,9 @@ jobs:
           make -j$(nproc)
           sudo make install
 
-      - name: Install pmtiles (stable binary v1.12.0)
+      - name: Install pmtiles (direct binary download)
         run: |
-          curl -L -o pmtiles https://github.com/protomaps/go-pmtiles/releases/download/v1.12.0/pmtiles_Linux_x86_64
+          curl -L -o pmtiles https://github.com/protomaps/go-pmtiles/releases/latest/download/pmtiles_linux_amd64
           chmod +x pmtiles
           sudo mv pmtiles /usr/local/bin/
 
