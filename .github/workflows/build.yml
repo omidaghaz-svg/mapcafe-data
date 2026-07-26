@@ -1,4 +1,4 @@
-name: Build PMTiles + Persian Fonts ZIP (Final)
+name: Build PMTiles + Persian Fonts ZIP (Guaranteed)
 
 on:
   workflow_dispatch:
@@ -16,7 +16,7 @@ jobs:
       - name: Install system dependencies
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y osmium-tool curl git build-essential libsqlite3-dev zlib1g-dev
+          sudo apt-get install -y osmium-tool curl git build-essential libsqlite3-dev zlib1g-dev jq
 
       - name: Build tippecanoe from source
         run: |
@@ -25,9 +25,11 @@ jobs:
           make -j$(nproc)
           sudo make install
 
-      - name: Install pmtiles (direct binary download)
+      - name: Install pmtiles (auto‑detect correct binary)
         run: |
-          curl -L -o pmtiles https://github.com/protomaps/go-pmtiles/releases/latest/download/pmtiles_linux_amd64
+          ASSET_URL=$(curl -s https://api.github.com/repos/protomaps/go-pmtiles/releases/latest | jq -r '.assets[] | select(.name | contains("linux_amd64")) | .browser_download_url')
+          echo "Downloading from: $ASSET_URL"
+          curl -L -o pmtiles "$ASSET_URL"
           chmod +x pmtiles
           sudo mv pmtiles /usr/local/bin/
 
