@@ -30,9 +30,9 @@ jobs:
           echo "DIFF_MODE=false" >> .env
           ./quickstart.sh iran
 
-      - name: Install mbutils and extract tiles
+      - name: Install mbutil and extract tiles
         run: |
-          pip install mbutils
+          pip install mbutil
           mb-util --image_format=pbf openmaptiles_repo/data/tiles.mbtiles tiles_extracted
 
       - name: Prepare final package
