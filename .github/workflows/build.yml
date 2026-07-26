@@ -232,8 +232,9 @@ jobs:
 
       - name: Download glyphs (font) for labels
         run: |
-          git clone --depth=1 --filter=blob:none --sparse https://github.com/openmaptiles/fonts.git fonts_repo
+          git clone --depth=1 --filter=blob:none https://github.com/openmaptiles/fonts.git fonts_repo
           cd fonts_repo
+          git sparse-checkout init --cone
           git sparse-checkout set "Noto Sans Arabic Regular"
           cd ..
           mkdir -p iran-map/glyphs
