@@ -1,4 +1,4 @@
-name: Build Static Tiles ZIP (Decompressed)
+name: Build PMTiles + Persian Fonts ZIP
 
 on:
   workflow_dispatch:
@@ -16,10 +16,10 @@ jobs:
       - name: Install tools
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y osmium-tool curl git build-essential libsqlite3-dev zlib1g-dev python3-pip
+          sudo apt-get install -y osmium-tool curl git build-essential libsqlite3-dev zlib1g-dev
           git clone --depth=1 https://github.com/felt/tippecanoe.git
           cd tippecanoe && make -j2 && sudo make install
-          pip3 install mbutil
+          npm install -g pmtiles@latest
 
       - name: Download Iran OSM
         run: curl -L -o iran.osm.pbf https://download.geofabrik.de/asia/iran-latest.osm.pbf
@@ -27,7 +27,7 @@ jobs:
       - name: Extract roads
         run: osmium tags-filter iran.osm.pbf w/highway -o roads.osm.pbf
 
-      - name: Split into 20 parts
+      - name: Split into 20 parts (full coverage)
         run: |
           osmium extract --bbox 44.0,37.5,49.0,40.0 roads.osm.pbf -o p01.osm.pbf
           osmium extract --bbox 49.0,37.5,54.0,40.0 roads.osm.pbf -o p02.osm.pbf
@@ -50,104 +50,44 @@ jobs:
           osmium extract --bbox 54.0,27.0,59.0,30.0 roads.osm.pbf -o p19.osm.pbf
           osmium extract --bbox 59.0,27.0,63.0,30.0 roads.osm.pbf -o p20.osm.pbf
 
-      - name: Build part 01
+      - name: Build parts (GeoJSON)
         run: |
-          osmium export p01.osm.pbf -f geojson -o p01.geojson
-          tippecanoe -zg -l roads -Z5 -z15 --no-feature-limit --no-tile-size-limit --force -o p01.mbtiles p01.geojson
-      - name: Build part 02
-        run: |
-          osmium export p02.osm.pbf -f geojson -o p02.geojson
-          tippecanoe -zg -l roads -Z5 -z15 --no-feature-limit --no-tile-size-limit --force -o p02.mbtiles p02.geojson
-      - name: Build part 03
-        run: |
-          osmium export p03.osm.pbf -f geojson -o p03.geojson
-          tippecanoe -zg -l roads -Z5 -z15 --no-feature-limit --no-tile-size-limit --force -o p03.mbtiles p03.geojson
-      - name: Build part 04
-        run: |
-          osmium export p04.osm.pbf -f geojson -o p04.geojson
-          tippecanoe -zg -l roads -Z5 -z15 --no-feature-limit --no-tile-size-limit --force -o p04.mbtiles p04.geojson
-      - name: Build part 05
-        run: |
-          osmium export p05.osm.pbf -f geojson -o p05.geojson
-          tippecanoe -zg -l roads -Z5 -z15 --no-feature-limit --no-tile-size-limit --force -o p05.mbtiles p05.geojson
-      - name: Build part 06
-        run: |
-          osmium export p06.osm.pbf -f geojson -o p06.geojson
-          tippecanoe -zg -l roads -Z5 -z15 --no-feature-limit --no-tile-size-limit --force -o p06.mbtiles p06.geojson
-      - name: Build part 07
-        run: |
-          osmium export p07.osm.pbf -f geojson -o p07.geojson
-          tippecanoe -zg -l roads -Z5 -z15 --no-feature-limit --no-tile-size-limit --force -o p07.mbtiles p07.geojson
-      - name: Build part 08
-        run: |
-          osmium export p08.osm.pbf -f geojson -o p08.geojson
-          tippecanoe -zg -l roads -Z5 -z15 --no-feature-limit --no-tile-size-limit --force -o p08.mbtiles p08.geojson
-      - name: Build part 09
-        run: |
-          osmium export p09.osm.pbf -f geojson -o p09.geojson
-          tippecanoe -zg -l roads -Z5 -z15 --no-feature-limit --no-tile-size-limit --force -o p09.mbtiles p09.geojson
-      - name: Build part 10
-        run: |
-          osmium export p10.osm.pbf -f geojson -o p10.geojson
-          tippecanoe -zg -l roads -Z5 -z15 --no-feature-limit --no-tile-size-limit --force -o p10.mbtiles p10.geojson
-      - name: Build part 11
-        run: |
-          osmium export p11.osm.pbf -f geojson -o p11.geojson
-          tippecanoe -zg -l roads -Z5 -z15 --no-feature-limit --no-tile-size-limit --force -o p11.mbtiles p11.geojson
-      - name: Build part 12
-        run: |
-          osmium export p12.osm.pbf -f geojson -o p12.geojson
-          tippecanoe -zg -l roads -Z5 -z15 --no-feature-limit --no-tile-size-limit --force -o p12.mbtiles p12.geojson
-      - name: Build part 13
-        run: |
-          osmium export p13.osm.pbf -f geojson -o p13.geojson
-          tippecanoe -zg -l roads -Z5 -z15 --no-feature-limit --no-tile-size-limit --force -o p13.mbtiles p13.geojson
-      - name: Build part 14
-        run: |
-          osmium export p14.osm.pbf -f geojson -o p14.geojson
-          tippecanoe -zg -l roads -Z5 -z15 --no-feature-limit --no-tile-size-limit --force -o p14.mbtiles p14.geojson
-      - name: Build part 15
-        run: |
-          osmium export p15.osm.pbf -f geojson -o p15.geojson
-          tippecanoe -zg -l roads -Z5 -z15 --no-feature-limit --no-tile-size-limit --force -o p15.mbtiles p15.geojson
-      - name: Build part 16
-        run: |
-          osmium export p16.osm.pbf -f geojson -o p16.geojson
-          tippecanoe -zg -l roads -Z5 -z15 --no-feature-limit --no-tile-size-limit --force -o p16.mbtiles p16.geojson
-      - name: Build part 17
-        run: |
-          osmium export p17.osm.pbf -f geojson -o p17.geojson
-          tippecanoe -zg -l roads -Z5 -z15 --no-feature-limit --no-tile-size-limit --force -o p17.mbtiles p17.geojson
-      - name: Build part 18
-        run: |
-          osmium export p18.osm.pbf -f geojson -o p18.geojson
-          tippecanoe -zg -l roads -Z5 -z15 --no-feature-limit --no-tile-size-limit --force -o p18.mbtiles p18.geojson
-      - name: Build part 19
-        run: |
-          osmium export p19.osm.pbf -f geojson -o p19.geojson
-          tippecanoe -zg -l roads -Z5 -z15 --no-feature-limit --no-tile-size-limit --force -o p19.mbtiles p19.geojson
-      - name: Build part 20
-        run: |
-          osmium export p20.osm.pbf -f geojson -o p20.geojson
-          tippecanoe -zg -l roads -Z5 -z15 --no-feature-limit --no-tile-size-limit --force -o p20.mbtiles p20.geojson
+          for i in $(seq -w 1 20); do
+            osmium export p${i}.osm.pbf -f geojson -o p${i}.geojson
+            tippecanoe -zg -l roads -Z5 -z15 --no-feature-limit --no-tile-size-limit --force -o p${i}.mbtiles p${i}.geojson
+          done
 
-      - name: Merge all parts
+      - name: Merge into MBTiles
         run: tile-join --force -o iran-roads.mbtiles p*.mbtiles
 
-      - name: Convert to static PBF tiles
-        run: mb-util --image_format=pbf iran-roads.mbtiles tiles
+      - name: Convert to PMTiles
+        run: pmtiles convert iran-roads.mbtiles iran-roads.pmtiles
 
-      - name: Decompress all tiles (remove gzip)
-        run: find tiles -type f -name '*.pbf' -exec sh -c 'gzip -d -c "$1" > "${1}.tmp" && mv "${1}.tmp" "$1"' _ {} \;
+      - name: Download Persian fonts (Vazirmatn)
+        run: |
+          mkdir -p fonts/Vazirmatn
+          cd fonts/Vazirmatn
+          curl -sL https://github.com/rastikerdar/vazirmatn/raw/main/fonts/webfonts/Vazirmatn-Medium.pbf -O
+          curl -sL https://github.com/rastikerdar/vazirmatn/raw/main/fonts/webfonts/Vazirmatn-Regular.pbf -O
+          curl -sL https://github.com/rastikerdar/vazirmatn/raw/main/fonts/webfonts/Vazirmatn-Bold.pbf -O
+          curl -sL https://github.com/rastikerdar/vazirmatn/raw/main/fonts/webfonts/Vazirmatn-Thin.pbf -O
+          curl -sL https://github.com/rastikerdar/vazirmatn/raw/main/fonts/webfonts/Vazirmatn-Light.pbf -O
+          cd ../..
 
-      - name: Create ZIP
-        run: cd tiles && zip -r ../iran-roads-tiles.zip .
+      - name: Create final ZIP
+        run: zip -r mapcafe-offline.zip iran-roads.pmtiles fonts
 
-      - name: Release
+      - name: Upload artifact (for manual download)
+        uses: actions/upload-artifact@v4
+        with:
+          name: mapcafe-offline
+          path: mapcafe-offline.zip
+
+      - name: Create Release
         uses: softprops/action-gh-release@v1
         with:
-          name: "Iran Roads Static Tiles"
-          tag_name: tiles
-          files: iran-roads-tiles.zip
+          name: "MapCafe Offline Bundle"
+          tag_name: nightly
+          files: mapcafe-offline.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
