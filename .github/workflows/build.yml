@@ -19,7 +19,6 @@ jobs:
           sudo apt-get install -y osmium-tool curl git build-essential libsqlite3-dev zlib1g-dev
           git clone --depth=1 https://github.com/felt/tippecanoe.git
           cd tippecanoe && make -j2 && sudo make install
-          npm install -g pmtiles@latest
 
       - name: Download Iran OSM
         run: curl -L -o iran.osm.pbf https://download.geofabrik.de/asia/iran-latest.osm.pbf
@@ -60,8 +59,8 @@ jobs:
       - name: Merge into MBTiles
         run: tile-join --force -o iran-roads.mbtiles p*.mbtiles
 
-      - name: Convert to PMTiles
-        run: pmtiles convert iran-roads.mbtiles iran-roads.pmtiles
+      - name: Convert to PMTiles (fixed)
+        run: npx pmtiles@latest convert iran-roads.mbtiles iran-roads.pmtiles
 
       - name: Download Persian fonts (Vazirmatn)
         run: |
