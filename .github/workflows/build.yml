@@ -1,107 +1,30 @@
-name: Build Iran Vector Tiles (TEST ZOOM 3)
+name: TEST - Font Download Only
 
 on:
   workflow_dispatch:
 
 jobs:
-  build:
+  font-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
-
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download Iran OSM data
+      - name: Download font files directly (Arabic Regular)
         run: |
-          mkdir -p openmaptiles/data
-          wget -q -O openmaptiles/data/iran-latest.osm.pbf https://download.geofabrik.de/asia/iran-latest.osm.pbf
+          mkdir -p test-fonts/"Noto Sans Arabic Regular"
+          cd test-fonts/"Noto Sans Arabic Regular"
+          wget -q "https://raw.githubusercontent.com/openmaptiles/fonts/main/Noto%20Sans%20Arabic%20Regular/0-255.pbf"
+          wget -q "https://raw.githubusercontent.com/openmaptiles/fonts/main/Noto%20Sans%20Arabic%20Regular/256-511.pbf"
+          wget -q "https://raw.githubusercontent.com/openmaptiles/fonts/main/Noto%20Sans%20Arabic%20Regular/512-767.pbf"
+          wget -q "https://raw.githubusercontent.com/openmaptiles/fonts/main/Noto%20Sans%20Arabic%20Regular/768-1023.pbf"
+          echo "Fonts downloaded successfully."
+          ls -la
 
-      - name: Clone OpenMapTiles
+      - name: Archive test fonts
         run: |
-          git clone --depth=1 https://github.com/openmaptiles/openmaptiles.git openmaptiles_repo
-          mkdir -p openmaptiles_repo/data
-          cp openmaptiles/data/iran-latest.osm.pbf openmaptiles_repo/data/
-
-      - name: Generate tiles (zoom 0–3)
-        working-directory: openmaptiles_repo
-        run: |
-          echo "MAX_ZOOM=3" >> .env
-          echo "DIFF_MODE=false" >> .env
-          ./quickstart.sh iran
-
-      - name: Install mbutil and extract tiles
-        run: |
-          pip install mbutil
-          mb-util --image_format=pbf openmaptiles_repo/data/tiles.mbtiles tiles_extracted
-
-      - name: Download MapLibre GL JS library
-        run: |
-          mkdir -p iran-map/lib
-          wget -q -O iran-map/lib/maplibre-gl.js https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js
-          wget -q -O iran-map/lib/maplibre-gl.css https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css
-
-      - name: Create style.json
-        run: |
-          cat > iran-map/style.json << 'STYLEEOF'
-          {
-            "version": 8,
-            "glyphs": "glyphs/{fontstack}/{range}.pbf",
-            "sources": {
-              "iran": {
-                "type": "vector",
-                "tiles": ["tiles/{z}/{x}/{y}.pbf"],
-                "minzoom": 0,
-                "maxzoom": 3
-              }
-            },
-            "layers": [
-              {
-                "id": "background",
-                "type": "background",
-                "paint": { "background-color": "#fafafa" }
-              },
-              {
-                "id": "place-city",
-                "type": "symbol",
-                "source": "iran",
-                "source-layer": "place",
-                "filter": ["==", "class", "city"],
-                "minzoom": 2,
-                "layout": {
-                  "text-field": ["coalesce", ["get", "name:fa"], ["get", "name"]],
-                  "text-font": ["Noto Sans Arabic Regular"],
-                  "text-size": 12
-                },
-                "paint": {
-                  "text-color": "#111111",
-                  "text-halo-color": "#ffffff",
-                  "text-halo-width": 1.5
-                }
-              }
-            ]
-          }
-          STYLEEOF
-
-      - name: Move tiles into iran-map
-        run: |
-          mv tiles_extracted iran-map/tiles
-
-      - name: Download glyphs (font) for labels
-        run: |
-          git clone --depth=1 https://github.com/openmaptiles/fonts.git fonts_repo
-          mkdir -p iran-map/glyphs/"Noto Sans Arabic Regular"
-          cp -r fonts_repo/"Noto Sans Arabic Regular"/* iran-map/glyphs/"Noto Sans Arabic Regular"/
-          rm -rf fonts_repo
-
-      - name: Create tar.gz archive
-        run: |
-          cd iran-map
-          tar -czf ../iran-map.tar.gz .
+          tar -czf fonts-test.tar.gz test-fonts/
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: iran-map-test-zoom3
-          path: iran-map.tar.gz
-          retention-days: 3
+          name: fonts-test
+          path: fonts-test.tar.gz
+          retention-days: 1
