@@ -1,4 +1,4 @@
-name: TEST - Iran Map Zoom 3 (with Persian Fonts)
+name: FIX - Iran Map Zoom 3 (Correct Data File)
 
 on:
   workflow_dispatch:
@@ -12,16 +12,16 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download Iran OSM data
+      - name: Download Iran OSM data and rename correctly
         run: |
           mkdir -p openmaptiles/data
-          wget -q -O openmaptiles/data/iran-latest.osm.pbf https://download.geofabrik.de/asia/iran-latest.osm.pbf
+          wget -q -O openmaptiles/data/iran.osm.pbf https://download.geofabrik.de/asia/iran-latest.osm.pbf
 
       - name: Clone OpenMapTiles
         run: |
           git clone --depth=1 https://github.com/openmaptiles/openmaptiles.git openmaptiles_repo
           mkdir -p openmaptiles_repo/data
-          cp openmaptiles/data/iran-latest.osm.pbf openmaptiles_repo/data/
+          cp openmaptiles/data/iran.osm.pbf openmaptiles_repo/data/
 
       - name: Generate tiles (zoom 0–3)
         working-directory: openmaptiles_repo
@@ -41,7 +41,7 @@ jobs:
           wget -q -O iran-map/lib/maplibre-gl.js https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js
           wget -q -O iran-map/lib/maplibre-gl.css https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css
 
-      - name: Create style.json (roads + city names for zoom 0-3)
+      - name: Create style.json (roads + city labels)
         run: |
           cat > iran-map/style.json << 'STYLEEOF'
           {
@@ -59,7 +59,7 @@ jobs:
               {
                 "id": "background",
                 "type": "background",
-                "paint": { "background-color": "#fafafa" }
+                "paint": { "background-color": "#f2efe9" }
               },
               {
                 "id": "road-motorway",
@@ -68,11 +68,8 @@ jobs:
                 "source-layer": "transportation",
                 "filter": ["==", "class", "motorway"],
                 "paint": {
-                  "line-color": "#ff6b6b",
-                  "line-width": ["interpolate", ["linear"], ["zoom"],
-                    2, 0.8,
-                    3, 1.5
-                  ]
+                  "line-color": "#e05555",
+                  "line-width": 1.5
                 }
               },
               {
@@ -82,11 +79,8 @@ jobs:
                 "source-layer": "transportation",
                 "filter": ["==", "class", "trunk"],
                 "paint": {
-                  "line-color": "#ff9f43",
-                  "line-width": ["interpolate", ["linear"], ["zoom"],
-                    2, 0.6,
-                    3, 1.2
-                  ]
+                  "line-color": "#f09a4b",
+                  "line-width": 1.2
                 }
               },
               {
@@ -96,11 +90,8 @@ jobs:
                 "source-layer": "transportation",
                 "filter": ["==", "class", "primary"],
                 "paint": {
-                  "line-color": "#feca57",
-                  "line-width": ["interpolate", ["linear"], ["zoom"],
-                    2, 0.5,
-                    3, 1
-                  ]
+                  "line-color": "#f5c44b",
+                  "line-width": 0.9
                 }
               },
               {
@@ -113,11 +104,11 @@ jobs:
                 "layout": {
                   "text-field": ["coalesce", ["get", "name:fa"], ["get", "name"]],
                   "text-font": ["Noto Sans Arabic Regular"],
-                  "text-size": 12
+                  "text-size": 11
                 },
                 "paint": {
-                  "text-color": "#111111",
-                  "text-halo-color": "#ffffff",
+                  "text-color": "#222",
+                  "text-halo-color": "#fff",
                   "text-halo-width": 1.5
                 }
               },
@@ -134,8 +125,8 @@ jobs:
                   "text-size": 10
                 },
                 "paint": {
-                  "text-color": "#333333",
-                  "text-halo-color": "#ffffff",
+                  "text-color": "#444",
+                  "text-halo-color": "#fff",
                   "text-halo-width": 1
                 }
               }
@@ -164,6 +155,6 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: iran-map-zoom3
+          name: iran-map-zoom3-fixed
           path: iran-map.tar.gz
           retention-days: 3
