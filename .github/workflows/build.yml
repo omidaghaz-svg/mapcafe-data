@@ -1,4 +1,4 @@
-name: TEST - Font Download Only
+name: TEST - Font Download with Git LFS
 
 on:
   workflow_dispatch:
@@ -7,16 +7,22 @@ jobs:
   font-test:
     runs-on: ubuntu-latest
     steps:
-      - name: Download font files directly (Arabic Regular)
+      - name: Install Git LFS
         run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq git-lfs
+          git lfs install
+
+      - name: Clone fonts repository (actual files)
+        run: |
+          git clone --depth=1 https://github.com/openmaptiles/fonts.git fonts_repo
+          cd fonts_repo
+          git lfs pull
+          cd ..
           mkdir -p test-fonts/"Noto Sans Arabic Regular"
-          cd test-fonts/"Noto Sans Arabic Regular"
-          wget -q "https://raw.githubusercontent.com/openmaptiles/fonts/main/Noto%20Sans%20Arabic%20Regular/0-255.pbf"
-          wget -q "https://raw.githubusercontent.com/openmaptiles/fonts/main/Noto%20Sans%20Arabic%20Regular/256-511.pbf"
-          wget -q "https://raw.githubusercontent.com/openmaptiles/fonts/main/Noto%20Sans%20Arabic%20Regular/512-767.pbf"
-          wget -q "https://raw.githubusercontent.com/openmaptiles/fonts/main/Noto%20Sans%20Arabic%20Regular/768-1023.pbf"
-          echo "Fonts downloaded successfully."
-          ls -la
+          cp -r fonts_repo/"Noto Sans Arabic Regular"/* test-fonts/"Noto Sans Arabic Regular"/
+          echo "Fonts copied successfully."
+          ls -la test-fonts/"Noto Sans Arabic Regular"
 
       - name: Archive test fonts
         run: |
