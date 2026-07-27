@@ -1,4 +1,4 @@
-name: TEST - Font Download with Git LFS
+name: TEST - Font Download from MapLibre CDN
 
 on:
   workflow_dispatch:
@@ -7,30 +7,22 @@ jobs:
   font-test:
     runs-on: ubuntu-latest
     steps:
-      - name: Install Git LFS
+      - name: Download Persian font glyphs
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq git-lfs
-          git lfs install
-
-      - name: Clone fonts repository (actual files)
-        run: |
-          git clone --depth=1 https://github.com/openmaptiles/fonts.git fonts_repo
-          cd fonts_repo
-          git lfs pull
-          cd ..
           mkdir -p test-fonts/"Noto Sans Arabic Regular"
-          cp -r fonts_repo/"Noto Sans Arabic Regular"/* test-fonts/"Noto Sans Arabic Regular"/
-          echo "Fonts copied successfully."
-          ls -la test-fonts/"Noto Sans Arabic Regular"
-
-      - name: Archive test fonts
+          cd test-fonts/"Noto Sans Arabic Regular"
+          wget -q "https://demotiles.maplibre.org/font/Noto%20Sans%20Arabic%20Regular/0-255.pbf"
+          wget -q "https://demotiles.maplibre.org/font/Noto%20Sans%20Arabic%20Regular/256-511.pbf"
+          wget -q "https://demotiles.maplibre.org/font/Noto%20Sans%20Arabic%20Regular/512-767.pbf"
+          wget -q "https://demotiles.maplibre.org/font/Noto%20Sans%20Arabic%20Regular/768-1023.pbf"
+          echo "All fonts downloaded."
+          ls -la
+      - name: Archive fonts
         run: |
           tar -czf fonts-test.tar.gz test-fonts/
-
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: fonts-test
+          name: fonts-from-cdn
           path: fonts-test.tar.gz
           retention-days: 1
