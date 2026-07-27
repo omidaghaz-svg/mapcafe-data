@@ -1,28 +1,169 @@
-name: TEST - Font Download (jsDelivr CDN)
+name: TEST - Iran Map Zoom 3 (with Persian Fonts)
 
 on:
   workflow_dispatch:
 
 jobs:
-  font-test:
+  build:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+
     steps:
-      - name: Download Persian font glyphs via jsDelivr
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download Iran OSM data
         run: |
-          mkdir -p test-fonts/"Noto Sans Arabic Regular"
-          cd test-fonts/"Noto Sans Arabic Regular"
+          mkdir -p openmaptiles/data
+          wget -q -O openmaptiles/data/iran-latest.osm.pbf https://download.geofabrik.de/asia/iran-latest.osm.pbf
+
+      - name: Clone OpenMapTiles
+        run: |
+          git clone --depth=1 https://github.com/openmaptiles/openmaptiles.git openmaptiles_repo
+          mkdir -p openmaptiles_repo/data
+          cp openmaptiles/data/iran-latest.osm.pbf openmaptiles_repo/data/
+
+      - name: Generate tiles (zoom 0–3)
+        working-directory: openmaptiles_repo
+        run: |
+          echo "MAX_ZOOM=3" >> .env
+          echo "DIFF_MODE=false" >> .env
+          ./quickstart.sh iran
+
+      - name: Install mbutil and extract tiles
+        run: |
+          pip install mbutil
+          mb-util --image_format=pbf openmaptiles_repo/data/tiles.mbtiles tiles_extracted
+
+      - name: Download MapLibre GL JS library
+        run: |
+          mkdir -p iran-map/lib
+          wget -q -O iran-map/lib/maplibre-gl.js https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js
+          wget -q -O iran-map/lib/maplibre-gl.css https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css
+
+      - name: Create style.json (roads + city names for zoom 0-3)
+        run: |
+          cat > iran-map/style.json << 'STYLEEOF'
+          {
+            "version": 8,
+            "glyphs": "glyphs/{fontstack}/{range}.pbf",
+            "sources": {
+              "iran": {
+                "type": "vector",
+                "tiles": ["tiles/{z}/{x}/{y}.pbf"],
+                "minzoom": 0,
+                "maxzoom": 3
+              }
+            },
+            "layers": [
+              {
+                "id": "background",
+                "type": "background",
+                "paint": { "background-color": "#fafafa" }
+              },
+              {
+                "id": "road-motorway",
+                "type": "line",
+                "source": "iran",
+                "source-layer": "transportation",
+                "filter": ["==", "class", "motorway"],
+                "paint": {
+                  "line-color": "#ff6b6b",
+                  "line-width": ["interpolate", ["linear"], ["zoom"],
+                    2, 0.8,
+                    3, 1.5
+                  ]
+                }
+              },
+              {
+                "id": "road-trunk",
+                "type": "line",
+                "source": "iran",
+                "source-layer": "transportation",
+                "filter": ["==", "class", "trunk"],
+                "paint": {
+                  "line-color": "#ff9f43",
+                  "line-width": ["interpolate", ["linear"], ["zoom"],
+                    2, 0.6,
+                    3, 1.2
+                  ]
+                }
+              },
+              {
+                "id": "road-primary",
+                "type": "line",
+                "source": "iran",
+                "source-layer": "transportation",
+                "filter": ["==", "class", "primary"],
+                "paint": {
+                  "line-color": "#feca57",
+                  "line-width": ["interpolate", ["linear"], ["zoom"],
+                    2, 0.5,
+                    3, 1
+                  ]
+                }
+              },
+              {
+                "id": "place-city",
+                "type": "symbol",
+                "source": "iran",
+                "source-layer": "place",
+                "filter": ["==", "class", "city"],
+                "minzoom": 2,
+                "layout": {
+                  "text-field": ["coalesce", ["get", "name:fa"], ["get", "name"]],
+                  "text-font": ["Noto Sans Arabic Regular"],
+                  "text-size": 12
+                },
+                "paint": {
+                  "text-color": "#111111",
+                  "text-halo-color": "#ffffff",
+                  "text-halo-width": 1.5
+                }
+              },
+              {
+                "id": "place-town",
+                "type": "symbol",
+                "source": "iran",
+                "source-layer": "place",
+                "filter": ["==", "class", "town"],
+                "minzoom": 3,
+                "layout": {
+                  "text-field": ["coalesce", ["get", "name:fa"], ["get", "name"]],
+                  "text-font": ["Noto Sans Arabic Regular"],
+                  "text-size": 10
+                },
+                "paint": {
+                  "text-color": "#333333",
+                  "text-halo-color": "#ffffff",
+                  "text-halo-width": 1
+                }
+              }
+            ]
+          }
+          STYLEEOF
+
+      - name: Move tiles into iran-map
+        run: |
+          mv tiles_extracted iran-map/tiles
+
+      - name: Download Persian font glyphs (jsDelivr)
+        run: |
+          mkdir -p iran-map/glyphs/"Noto Sans Arabic Regular"
+          cd iran-map/glyphs/"Noto Sans Arabic Regular"
           curl -sS -O "https://cdn.jsdelivr.net/gh/maplibre/fonts@main/Noto%20Sans%20Arabic%20Regular/0-255.pbf"
           curl -sS -O "https://cdn.jsdelivr.net/gh/maplibre/fonts@main/Noto%20Sans%20Arabic%20Regular/256-511.pbf"
           curl -sS -O "https://cdn.jsdelivr.net/gh/maplibre/fonts@main/Noto%20Sans%20Arabic%20Regular/512-767.pbf"
           curl -sS -O "https://cdn.jsdelivr.net/gh/maplibre/fonts@main/Noto%20Sans%20Arabic%20Regular/768-1023.pbf"
-          echo "Fonts downloaded successfully."
-          ls -la
-      - name: Archive fonts
+
+      - name: Create tar.gz archive
         run: |
-          tar -czf fonts-test.tar.gz test-fonts/
+          cd iran-map
+          tar -czf ../iran-map.tar.gz .
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: fonts-from-jsdelivr
-          path: fonts-test.tar.gz
-          retention-days: 1
+          name: iran-map-zoom3
+          path: iran-map.tar.gz
+          retention-days: 3
