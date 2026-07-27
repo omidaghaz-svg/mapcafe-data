@@ -1,4 +1,4 @@
-name: TEST - Font Download from Release
+name: TEST - Font Download (maplibre/fonts)
 
 on:
   workflow_dispatch:
@@ -7,20 +7,22 @@ jobs:
   font-test:
     runs-on: ubuntu-latest
     steps:
-      - name: Download and extract Persian font from release
+      - name: Download Arabic Regular font from maplibre/fonts
         run: |
-          wget -q -O fonts.tar.gz https://github.com/openmaptiles/fonts/releases/download/v1.0/fonts.tar.gz
-          tar -xzf fonts.tar.gz "Noto Sans Arabic Regular/"
-          mkdir -p test-fonts
-          cp -r "Noto Sans Arabic Regular" test-fonts/
-          echo "Fonts copied successfully."
-          ls -la test-fonts/"Noto Sans Arabic Regular"
+          mkdir -p test-fonts/"Noto Sans Arabic Regular"
+          cd test-fonts/"Noto Sans Arabic Regular"
+          wget -q "https://raw.githubusercontent.com/maplibre/fonts/main/Noto%20Sans%20Arabic%20Regular/0-255.pbf"
+          wget -q "https://raw.githubusercontent.com/maplibre/fonts/main/Noto%20Sans%20Arabic%20Regular/256-511.pbf"
+          wget -q "https://raw.githubusercontent.com/maplibre/fonts/main/Noto%20Sans%20Arabic%20Regular/512-767.pbf"
+          wget -q "https://raw.githubusercontent.com/maplibre/fonts/main/Noto%20Sans%20Arabic%20Regular/768-1023.pbf"
+          echo "Fonts downloaded successfully."
+          ls -la
       - name: Archive fonts
         run: |
           tar -czf fonts-test.tar.gz test-fonts/
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: fonts-from-release
+          name: fonts-from-maplibre
           path: fonts-test.tar.gz
           retention-days: 1
