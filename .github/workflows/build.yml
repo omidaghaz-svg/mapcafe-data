@@ -1,4 +1,4 @@
-name: FINAL-TEST - Tilemaker Iran Zoom 3 (Fixed Download)
+name: GUARANTEED - Iran Map Zoom 3 (Docker Tilemaker)
 
 on:
   workflow_dispatch:
@@ -12,18 +12,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download Tilemaker (with User-Agent)
-        run: |
-          curl -L -A "Mozilla/5.0 (X11; Linux x86_64)" -o tilemaker.zip "https://github.com/systemed/tilemaker/releases/download/v3.0.0/tilemaker-linux-x86_64.zip"
-          unzip -q tilemaker.zip
-          chmod +x tilemaker
-
       - name: Download Iran OSM data
         run: |
           mkdir -p data
           wget -q -O data/iran.osm.pbf https://download.geofabrik.de/asia/iran-latest.osm.pbf
 
-      - name: Create minimal config for roads & places
+      - name: Create tilemaker config (roads + places)
         run: |
           cat > config.json << 'EOF'
           {
@@ -61,12 +55,15 @@ jobs:
           }
           EOF
 
-      - name: Generate vector tiles (zoom 0-3)
+      - name: Generate tiles using tilemaker Docker image
         run: |
-          ./tilemaker --input data/iran.osm.pbf \
-                       --output tiles \
-                       --config config.json \
-                       --skip integrity
+          docker run --rm \
+            -v "$(pwd)":/data \
+            ghcr.io/systemed/tilemaker \
+            /data/data/iran.osm.pbf \
+            --output /data/tiles \
+            --config /data/config.json \
+            --skip integrity
 
       - name: Download MapLibre GL JS library
         run: |
@@ -188,6 +185,6 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: iran-map-zoom3-tilemaker-fixed
+          name: iran-map-zoom3-docker
           path: iran-map.tar.gz
           retention-days: 3
