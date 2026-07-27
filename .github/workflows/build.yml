@@ -1,4 +1,4 @@
-name: Build Iran Vector Tiles (TEST ZOOM 5)
+name: Build Iran Vector Tiles (TEST ZOOM 3)
 
 on:
   workflow_dispatch:
@@ -6,7 +6,7 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
 
     steps:
       - name: Checkout repository
@@ -23,10 +23,10 @@ jobs:
           mkdir -p openmaptiles_repo/data
           cp openmaptiles/data/iran-latest.osm.pbf openmaptiles_repo/data/
 
-      - name: Generate tiles (zoom 0–5)
+      - name: Generate tiles (zoom 0–3)
         working-directory: openmaptiles_repo
         run: |
-          echo "MAX_ZOOM=5" >> .env
+          echo "MAX_ZOOM=3" >> .env
           echo "DIFF_MODE=false" >> .env
           ./quickstart.sh iran
 
@@ -52,7 +52,7 @@ jobs:
                 "type": "vector",
                 "tiles": ["tiles/{z}/{x}/{y}.pbf"],
                 "minzoom": 0,
-                "maxzoom": 5
+                "maxzoom": 3
               }
             },
             "layers": [
@@ -62,82 +62,12 @@ jobs:
                 "paint": { "background-color": "#fafafa" }
               },
               {
-                "id": "road-motorway",
-                "type": "line",
-                "source": "iran",
-                "source-layer": "transportation",
-                "filter": ["==", "class", "motorway"],
-                "paint": {
-                  "line-color": "#ff6b6b",
-                  "line-width": ["interpolate", ["linear"], ["zoom"],
-                    3, 0.8,
-                    5, 2
-                  ]
-                }
-              },
-              {
-                "id": "road-trunk",
-                "type": "line",
-                "source": "iran",
-                "source-layer": "transportation",
-                "filter": ["==", "class", "trunk"],
-                "paint": {
-                  "line-color": "#ff9f43",
-                  "line-width": ["interpolate", ["linear"], ["zoom"],
-                    3, 0.6,
-                    5, 1.5
-                  ]
-                }
-              },
-              {
-                "id": "road-primary",
-                "type": "line",
-                "source": "iran",
-                "source-layer": "transportation",
-                "filter": ["==", "class", "primary"],
-                "paint": {
-                  "line-color": "#feca57",
-                  "line-width": ["interpolate", ["linear"], ["zoom"],
-                    3, 0.5,
-                    5, 1.2
-                  ]
-                }
-              },
-              {
-                "id": "road-secondary",
-                "type": "line",
-                "source": "iran",
-                "source-layer": "transportation",
-                "filter": ["==", "class", "secondary"],
-                "paint": {
-                  "line-color": "#ffffff",
-                  "line-width": ["interpolate", ["linear"], ["zoom"],
-                    4, 0.4,
-                    5, 0.8
-                  ]
-                }
-              },
-              {
-                "id": "road-tertiary",
-                "type": "line",
-                "source": "iran",
-                "source-layer": "transportation",
-                "filter": ["==", "class", "tertiary"],
-                "paint": {
-                  "line-color": "#ffffff",
-                  "line-width": ["interpolate", ["linear"], ["zoom"],
-                    5, 0.5,
-                    5, 0.5
-                  ]
-                }
-              },
-              {
                 "id": "place-city",
                 "type": "symbol",
                 "source": "iran",
                 "source-layer": "place",
                 "filter": ["==", "class", "city"],
-                "minzoom": 3,
+                "minzoom": 2,
                 "layout": {
                   "text-field": ["coalesce", ["get", "name:fa"], ["get", "name"]],
                   "text-font": ["Noto Sans Arabic Regular"],
@@ -147,24 +77,6 @@ jobs:
                   "text-color": "#111111",
                   "text-halo-color": "#ffffff",
                   "text-halo-width": 1.5
-                }
-              },
-              {
-                "id": "place-town",
-                "type": "symbol",
-                "source": "iran",
-                "source-layer": "place",
-                "filter": ["==", "class", "town"],
-                "minzoom": 5,
-                "layout": {
-                  "text-field": ["coalesce", ["get", "name:fa"], ["get", "name"]],
-                  "text-font": ["Noto Sans Arabic Regular"],
-                  "text-size": 10
-                },
-                "paint": {
-                  "text-color": "#333333",
-                  "text-halo-color": "#ffffff",
-                  "text-halo-width": 1
                 }
               }
             ]
@@ -177,11 +89,10 @@ jobs:
 
       - name: Download glyphs (font) for labels
         run: |
-          wget -q https://github.com/openmaptiles/fonts/archive/refs/heads/main.zip -O fonts.zip
-          unzip -q fonts.zip "fonts-main/Noto Sans Arabic Regular/*" -d fonts_extracted
+          git clone --depth=1 https://github.com/openmaptiles/fonts.git fonts_repo
           mkdir -p iran-map/glyphs/"Noto Sans Arabic Regular"
-          cp -r fonts_extracted/fonts-main/"Noto Sans Arabic Regular"/* iran-map/glyphs/"Noto Sans Arabic Regular"/
-          rm -rf fonts_extracted fonts.zip
+          cp -r fonts_repo/"Noto Sans Arabic Regular"/* iran-map/glyphs/"Noto Sans Arabic Regular"/
+          rm -rf fonts_repo
 
       - name: Create tar.gz archive
         run: |
@@ -191,6 +102,6 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: iran-map-test-zoom5
+          name: iran-map-test-zoom3
           path: iran-map.tar.gz
           retention-days: 3
