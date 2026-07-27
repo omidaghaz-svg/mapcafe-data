@@ -1,4 +1,4 @@
-name: FINAL-TEST - Tilemaker Iran Zoom 3
+name: FINAL-TEST - Tilemaker Iran Zoom 3 (Fixed Download)
 
 on:
   workflow_dispatch:
@@ -12,9 +12,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download Tilemaker (stable binary)
+      - name: Download Tilemaker (with User-Agent)
         run: |
-          curl -L -o tilemaker.zip "https://github.com/systemed/tilemaker/releases/download/v3.0.0/tilemaker-linux-x86_64.zip"
+          curl -L -A "Mozilla/5.0 (X11; Linux x86_64)" -o tilemaker.zip "https://github.com/systemed/tilemaker/releases/download/v3.0.0/tilemaker-linux-x86_64.zip"
           unzip -q tilemaker.zip
           chmod +x tilemaker
 
@@ -188,6 +188,6 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: iran-map-zoom3-final
+          name: iran-map-zoom3-tilemaker-fixed
           path: iran-map.tar.gz
           retention-days: 3
