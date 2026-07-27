@@ -1,4 +1,4 @@
-name: FINAL TEST - Iran Map Zoom 3 (Planetiler)
+name: FINAL-TEST - Tilemaker Iran Zoom 3
 
 on:
   workflow_dispatch:
@@ -6,33 +6,67 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 20
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Setup Java (required for Planetiler)
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '21'
-
-      - name: Download Planetiler
+      - name: Download Tilemaker (stable binary)
         run: |
-          wget -q https://github.com/onthegomap/planetiler/releases/download/v0.8.4/planetiler.jar
-          # دانلود نقشه ایران
-          wget -q -O iran.osm.pbf https://download.geofabrik.de/asia/iran-latest.osm.pbf
+          curl -L -o tilemaker.zip "https://github.com/systemed/tilemaker/releases/download/v3.0.0/tilemaker-linux-x86_64.zip"
+          unzip -q tilemaker.zip
+          chmod +x tilemaker
 
-      - name: Generate vector tiles (zoom 0-3) with Planetiler
+      - name: Download Iran OSM data
         run: |
-          java -Xmx2g -jar planetiler.jar \
-            --download=false \
-            --area=iran \
-            --osm-path=iran.osm.pbf \
-            --output=tiles \
-            --maxzoom=3 \
-            --write-json-tiles
+          mkdir -p data
+          wget -q -O data/iran.osm.pbf https://download.geofabrik.de/asia/iran-latest.osm.pbf
+
+      - name: Create minimal config for roads & places
+        run: |
+          cat > config.json << 'EOF'
+          {
+            "layers": {
+              "transportation": {
+                "minzoom": 5,
+                "source": "osm.xml",
+                "filter": {
+                  "highway": ["motorway", "trunk", "primary", "secondary", "tertiary", "unclassified", "residential", "service", "track", "path"]
+                },
+                "mapping": {
+                  "class": "highway"
+                }
+              },
+              "place": {
+                "minzoom": 2,
+                "source": "osm.xml",
+                "filter": {
+                  "place": ["city", "town"]
+                },
+                "mapping": {
+                  "name": "name",
+                  "name:fa": "name:fa",
+                  "class": "place"
+                }
+              }
+            },
+            "settings": {
+              "minzoom": 0,
+              "maxzoom": 3,
+              "basezoom": 3,
+              "include_ids": false,
+              "compress": true
+            }
+          }
+          EOF
+
+      - name: Generate vector tiles (zoom 0-3)
+        run: |
+          ./tilemaker --input data/iran.osm.pbf \
+                       --output tiles \
+                       --config config.json \
+                       --skip integrity
 
       - name: Download MapLibre GL JS library
         run: |
@@ -40,7 +74,7 @@ jobs:
           wget -q -O iran-map/lib/maplibre-gl.js https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.js
           wget -q -O iran-map/lib/maplibre-gl.css https://unpkg.com/maplibre-gl@4.7.1/dist/maplibre-gl.css
 
-      - name: Create style.json (compatible with Planetiler layers)
+      - name: Create style.json
         run: |
           cat > iran-map/style.json << 'STYLEEOF'
           {
@@ -133,9 +167,8 @@ jobs:
           }
           STYLEEOF
 
-      - name: Copy tiles into iran-map
+      - name: Move tiles into iran-map
         run: |
-          # Planetiler خروجی را در پوشه tiles/ می‌ریزد (با ساختار {z}/{x}/{y}.pbf)
           mv tiles iran-map/tiles
 
       - name: Download Persian font glyphs
@@ -155,6 +188,6 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: iran-map-zoom3-planetiler
+          name: iran-map-zoom3-final
           path: iran-map.tar.gz
           retention-days: 3
