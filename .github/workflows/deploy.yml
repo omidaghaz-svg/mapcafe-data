@@ -1,0 +1,56 @@
+name: Daily Iran Map Tiles Update
+
+on:
+  schedule:
+    - cron: '0 2 * * *'   # هر روز ساعت ۲ بامداد UTC
+  workflow_dispatch:       # امکان اجرای دستی
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Download Planetiler
+        run: wget -q -O planetiler.jar https://github.com/onthegomap/planetiler/releases/download/v0.8.4/planetiler.jar
+
+      - name: Download Iran OSM data
+        run: wget -q -O iran.osm.pbf https://download.geofabrik.de/asia/iran-latest.osm.pbf
+
+      - name: Pre-download required source files
+        run: |
+          mkdir -p data/sources
+          cd data/sources
+          wget -q https://github.com/openmaptiles/natural-earth-data/releases/download/v1.0/natural_earth_vector.sqlite.zip
+          wget -q https://osmdata.openstreetmap.de/download/water-polygons-split-3857.zip
+          wget -q https://dev.maptiler.download/geodata/omt/lake_centerline.shp.zip
+
+      - name: Generate tiles (zoom 0-12, uncompressed)
+        run: |
+          java -Xmx4g -jar planetiler.jar \
+            --download=false \
+            --osm-path=iran.osm.pbf \
+            --maxzoom=12 \
+            --output=tiles \
+            --tile-compression=none \
+            --force
+
+      - name: Bundle only tiles (without fonts/lib/style)
+        run: |
+          tar -czf iran-tiles.tar.gz tiles/
+
+      - name: Upload tiles artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: iran-tiles
+          path: iran-tiles.tar.gz
+          retention-days: 2   # نگهداری ۲ روز کافی است
