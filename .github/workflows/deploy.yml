@@ -26,13 +26,36 @@ jobs:
       - name: Download Iran OSM data
         run: wget -q -O iran.osm.pbf https://download.geofabrik.de/asia/iran-latest.osm.pbf
 
-      - name: Pre-download required source files
+      # ========== کش و دانلود فایل‌های کمکی ==========
+      - name: Cache map sources
+        id: cache-sources
+        uses: actions/cache@v4
+        with:
+          path: data/sources
+          key: iran-sources-${{ hashFiles('.github/workflows/deploy.yml') }}
+          restore-keys: |
+            iran-sources-
+
+      - name: Download source files (only if cache miss)
+        if: steps.cache-sources.outputs.cache-hit != 'true'
         run: |
           mkdir -p data/sources
           cd data/sources
-          wget -q https://github.com/openmaptiles/natural-earth-data/releases/download/v1.0/natural_earth_vector.sqlite.zip
-          wget -q https://osmdata.openstreetmap.de/download/water-polygons-split-3857.zip
-          wget -q https://dev.maptiler.download/geodata/omt/lake_centerline.shp.zip
+
+          # natural_earth (با چند mirror)
+          curl -L --retry 5 --retry-delay 10 -o natural_earth_vector.sqlite.zip \
+            https://github.com/openmaptiles/natural-earth-data/releases/download/v1.0/natural_earth_vector.sqlite.zip \
+            || curl -L --retry 3 --retry-delay 15 -o natural_earth_vector.sqlite.zip \
+            https://dev.maptiler.download/geodata/omt/natural_earth_vector.sqlite.zip
+
+          # water polygons
+          curl -L --retry 5 --retry-delay 10 -o water-polygons-split-3857.zip \
+            https://osmdata.openstreetmap.de/download/water-polygons-split-3857.zip
+
+          # lake centerlines
+          curl -L --retry 5 --retry-delay 10 -o lake_centerline.shp.zip \
+            https://github.com/openmaptiles/lake-centerlines/releases/download/v0.9/lake_centerline.shp.zip
+      # =============================================
 
       - name: Generate tiles (zoom 0-12, uncompressed)
         run: |
@@ -44,13 +67,12 @@ jobs:
             --tile-compression=none \
             --force
 
-      - name: Bundle only tiles (without fonts/lib/style)
-        run: |
-          tar -czf iran-tiles.tar.gz tiles/
+      - name: Bundle tiles
+        run: tar -czf iran-tiles.tar.gz tiles/
 
       - name: Upload tiles artifact
         uses: actions/upload-artifact@v4
         with:
           name: iran-tiles
           path: iran-tiles.tar.gz
-          retention-days: 2   # نگهداری ۲ روز کافی است
+          retention-days: 2   # ۲ روز نگهداری (چون هر روز ساخته می‌شود)
