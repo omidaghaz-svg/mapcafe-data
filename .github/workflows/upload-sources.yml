@@ -1,19 +1,49 @@
+name: Upload Map Sources to Release
+
+on:
+  workflow_dispatch:
+
+# 🔑 مجوز ایجاد Release
+permissions:
+  contents: write
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download source files
+        run: |
+          mkdir sources
+          cd sources
+
+          curl -L --retry 5 --retry-delay 10 -o natural_earth_vector.sqlite.zip \
+            https://github.com/openmaptiles/natural-earth-data/releases/download/v1.0/natural_earth_vector.sqlite.zip \
+            || curl -L --retry 3 --retry-delay 15 -o natural_earth_vector.sqlite.zip \
+            https://dev.maptiler.download/geodata/omt/natural_earth_vector.sqlite.zip
+
+          curl -L --retry 5 --retry-delay 10 -o water-polygons-split-3857.zip \
+            https://osmdata.openstreetmap.de/download/water-polygons-split-3857.zip
+
+          curl -L --retry 5 --retry-delay 10 -o lake_centerline.shp.zip \
+            https://github.com/openmaptiles/lake-centerlines/releases/download/v0.9/lake_centerline.shp.zip
+
       - name: Delete existing release (if exists)
         env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if gh release view sources &>/dev/null; then
             gh release delete sources --yes
           fi
         continue-on-error: true
 
-      - name: Create release and upload files one by one
+      - name: Create release and upload files
         env:
-          GITHUB_TOKEN: ${{ secrets.RELEASE_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create sources --title "Map Sources" --notes "فایل‌های کمکی برای ساخت نقشه ایران" --draft
-          for file in sources/*.zip; do
-            echo "Uploading $file..."
-            gh release upload sources "$file"
-          done
-          gh release edit sources --draft=false
+          gh release create sources \
+            --title "Map Sources" \
+            --notes "فایل‌های کمکی برای ساخت نقشه ایران" \
+            sources/*.zip
