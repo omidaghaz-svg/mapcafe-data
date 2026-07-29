@@ -1,9 +1,9 @@
-name: Daily Iran Map Tiles Update
+name: Daily Iran Map Tiles (4 Parts)
 
 on:
   schedule:
-    - cron: '0 2 * * *'   # هر روز ساعت ۲ بامداد UTC
-  workflow_dispatch:       # امکان اجرای دستی
+    - cron: '0 2 * * *'
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -11,7 +11,7 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 480   # افزایش زمان برای زوم ۱۵
+    timeout-minutes: 480
 
     steps:
       - name: Checkout repository
@@ -29,7 +29,7 @@ jobs:
       - name: Download Iran OSM data
         run: wget -q -O iran.osm.pbf https://download.geofabrik.de/asia/iran-latest.osm.pbf
 
-      - name: Download source files from own release
+      - name: Download source files from release
         run: |
           mkdir -p data/sources
           cd data/sources
@@ -38,18 +38,29 @@ jobs:
           curl -L --retry 5 --retry-delay 10 -o water-polygons-split-3857.zip "$BASE_URL/water-polygons-split-3857.zip"
           curl -L --retry 5 --retry-delay 10 -o lake_centerline.shp.zip "$BASE_URL/lake_centerline.shp.zip"
 
-      - name: Generate tiles (zoom 0-15, uncompressed)
+      - name: Generate tiles Zoom 0-12
         run: |
-          java -Xmx6g -Xms4g -jar planetiler.jar \
-            --download=false \
-            --osm-path=iran.osm.pbf \
-            --maxzoom=15 \
-            --output=tiles \
-            --tile-compression=none \
-            --force
+          java -Xmx4g -jar planetiler.jar --download=false --osm-path=iran.osm.pbf \
+            --minzoom=0 --maxzoom=12 --output=tiles_0_12 --tile-compression=none --force
+          tar -czf tiles-0-12.tar.gz tiles_0_12/
 
-      - name: Bundle tiles
-        run: tar -czf iran-tiles.tar.gz tiles/
+      - name: Generate tiles Zoom 13
+        run: |
+          java -Xmx4g -jar planetiler.jar --download=false --osm-path=iran.osm.pbf \
+            --minzoom=13 --maxzoom=13 --output=tiles_13 --tile-compression=none --force
+          tar -czf tiles-13.tar.gz tiles_13/
+
+      - name: Generate tiles Zoom 14
+        run: |
+          java -Xmx4g -jar planetiler.jar --download=false --osm-path=iran.osm.pbf \
+            --minzoom=14 --maxzoom=14 --output=tiles_14 --tile-compression=none --force
+          tar -czf tiles-14.tar.gz tiles_14/
+
+      - name: Generate tiles Zoom 15
+        run: |
+          java -Xmx4g -jar planetiler.jar --download=false --osm-path=iran.osm.pbf \
+            --minzoom=15 --maxzoom=15 --output=tiles_15 --tile-compression=none --force
+          tar -czf tiles-15.tar.gz tiles_15/
 
       - name: Delete old release (if exists)
         env:
@@ -60,10 +71,11 @@ jobs:
           fi
         continue-on-error: true
 
-      - name: Create new release and upload tiles
+      - name: Upload all files to new release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create latest iran-tiles.tar.gz \
-            --title "Latest Iran Tiles" \
-            --notes "Automatically generated tiles (zoom 0-15)"
+          gh release create latest \
+            tiles-0-12.tar.gz tiles-13.tar.gz tiles-14.tar.gz tiles-15.tar.gz \
+            --title "Latest Iran Tiles (4 Parts)" \
+            --notes "Zoom ranges: 0-12, 13, 14, 15"
