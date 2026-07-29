@@ -48,9 +48,10 @@ jobs:
       - name: Bundle tiles
         run: tar -czf iran-tiles.tar.gz tiles/
 
-      - name: Upload tiles artifact
+      - name: Upload tiles artifact (raw tar.gz)
         uses: actions/upload-artifact@v4
         with:
           name: iran-tiles
           path: iran-tiles.tar.gz
-          retention-days: 2   # هر روز ساخته می‌شود، نگهداری ۲ روز کافی است
+          retention-days: 2
+          compression-level: 0   # مهم: خود artifact را zip نکند
