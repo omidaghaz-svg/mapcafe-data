@@ -1,0 +1,72 @@
+name: 🔄 Rebuild Zoom 15 (Weekly, Tuesday)
+
+on:
+  schedule:
+    - cron: '0 2 * * 2'        # هر سه‌شنبه ساعت ۲ بامداد UTC
+  workflow_dispatch:            # اجرای دستی
+
+permissions:
+  contents: write               # لازم برای آپلود در ریلیز
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 480        # ۸ ساعت برای زوم ۱۵
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Download Planetiler
+        run: wget -q -O planetiler.jar https://github.com/onthegomap/planetiler/releases/download/v0.8.4/planetiler.jar
+
+      - name: Cache Iran OSM data
+        uses: actions/cache@v4
+        with:
+          path: iran.osm.pbf
+          key: iran-osm-zoom15-${{ hashFiles('.github/workflows/build-zoom-15.yml') }}
+
+      - name: Download OSM data (if not cached)
+        run: |
+          if [ ! -f iran.osm.pbf ]; then
+            wget -q -O iran.osm.pbf https://download.geofabrik.de/asia/iran-latest.osm.pbf
+          fi
+
+      - name: Download source files from release
+        run: |
+          mkdir -p data/sources
+          cd data/sources
+          BASE_URL="https://github.com/${{ github.repository }}/releases/download/sources"
+          curl -L --retry 5 --retry-delay 10 -o natural_earth_vector.sqlite.zip "$BASE_URL/natural_earth_vector.sqlite.zip"
+          curl -L --retry 5 --retry-delay 10 -o water-polygons-split-3857.zip "$BASE_URL/water-polygons-split-3857.zip"
+          curl -L --retry 5 --retry-delay 10 -o lake_centerline.shp.zip "$BASE_URL/lake_centerline.shp.zip"
+
+      - name: 🏗️ Generate tiles (zoom 15 only) with maximum memory
+        run: |
+          java -Xmx8g -Xms4g -jar planetiler.jar \
+            --download=false \
+            --osm-path=iran.osm.pbf \
+            --minzoom=15 \
+            --maxzoom=15 \
+            --output=tiles_15 \
+            --tile-compression=none \
+            --force \
+            --threads=2
+
+      - name: 📦 Bundle tiles
+        run: tar -czf tiles-15.tar.gz tiles_15/
+
+      - name: 🚀 Upload to existing 'latest' release (replace old)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ! gh release view latest &>/dev/null; then
+            gh release create latest --title "Latest Iran Tiles" --notes "Automatically updated tiles" --draft
+          fi
+          gh release upload latest tiles-15.tar.gz --clobber
