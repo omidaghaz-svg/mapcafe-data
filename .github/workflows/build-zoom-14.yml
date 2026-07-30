@@ -1,0 +1,81 @@
+name: 🔄 Rebuild Zoom 14 (Bi‑Weekly, High Memory)
+
+on:
+  schedule:
+    - cron: '0 5 * * 0'        # هر یکشنبه ساعت 5 بامداد UTC
+  workflow_dispatch:            # اجرای دستی
+
+permissions:
+  contents: write               # لازم برای آپلود در ریلیز
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: ⏸️ Check if this is an even week (bi‑weekly gate)
+        run: |
+          WEEK=$(date +%V)
+          if [ $((WEEK % 2)) -ne 0 ]; then
+            echo "Odd week – skipping build."
+            exit 0
+          fi
+          echo "Even week – proceeding with build."
+
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Download Planetiler
+        run: wget -q -O planetiler.jar https://github.com/onthegomap/planetiler/releases/download/v0.8.4/planetiler.jar
+
+      - name: Cache Iran OSM data
+        uses: actions/cache@v4
+        with:
+          path: iran.osm.pbf
+          key: iran-osm-zoom14-${{ hashFiles('.github/workflows/build-zoom-14.yml') }}
+
+      - name: Download OSM data (if not cached)
+        run: |
+          if [ ! -f iran.osm.pbf ]; then
+            wget -q -O iran.osm.pbf https://download.geofabrik.de/asia/iran-latest.osm.pbf
+          fi
+
+      - name: Download source files from release
+        run: |
+          mkdir -p data/sources
+          cd data/sources
+          BASE_URL="https://github.com/${{ github.repository }}/releases/download/sources"
+          curl -L --retry 5 --retry-delay 10 -o natural_earth_vector.sqlite.zip "$BASE_URL/natural_earth_vector.sqlite.zip"
+          curl -L --retry 5 --retry-delay 10 -o water-polygons-split-3857.zip "$BASE_URL/water-polygons-split-3857.zip"
+          curl -L --retry 5 --retry-delay 10 -o lake_centerline.shp.zip "$BASE_URL/lake_centerline.shp.zip"
+
+      - name: 🏗️ Generate tiles (zoom 14 only) with maximum memory
+        run: |
+          java -Xmx8g -Xms4g -jar planetiler.jar \
+            --download=false \
+            --osm-path=iran.osm.pbf \
+            --minzoom=14 \
+            --maxzoom=14 \
+            --output=tiles_14 \
+            --tile-compression=none \
+            --force \
+            --threads=2
+
+      - name: 📦 Bundle tiles
+        run: tar -czf tiles-14.tar.gz tiles_14/
+
+      - name: 🚀 Upload to existing 'latest' release (replace old)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ! gh release view latest &>/dev/null; then
+            gh release create latest --title "Latest Iran Tiles" --notes "Automatically updated tiles" --draft
+          fi
+          gh release upload latest tiles-14.tar.gz --clobber
