@@ -1,0 +1,65 @@
+name: Rebuild Zoom 15 Tiles (Complete)
+
+on:
+  workflow_dispatch:   # فقط دستی
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360   # ۶ ساعت
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Download Planetiler
+        run: wget -q -O planetiler.jar https://github.com/onthegomap/planetiler/releases/download/v0.8.4/planetiler.jar
+
+      - name: Cache Iran OSM data
+        uses: actions/cache@v4
+        with:
+          path: iran.osm.pbf
+          key: iran-osm-zoom15-${{ hashFiles('.github/workflows/rebuild-zoom15.yml') }}
+
+      - name: Download OSM data (if not cached)
+        run: |
+          if [ ! -f iran.osm.pbf ]; then
+            wget -q -O iran.osm.pbf https://download.geofabrik.de/asia/iran-latest.osm.pbf
+          fi
+
+      - name: Download source files from release
+        run: |
+          mkdir -p data/sources
+          cd data/sources
+          BASE_URL="https://github.com/${{ github.repository }}/releases/download/sources"
+          curl -L --retry 5 --retry-delay 10 -o natural_earth_vector.sqlite.zip "$BASE_URL/natural_earth_vector.sqlite.zip"
+          curl -L --retry 5 --retry-delay 10 -o water-polygons-split-3857.zip "$BASE_URL/water-polygons-split-3857.zip"
+          curl -L --retry 5 --retry-delay 10 -o lake_centerline.shp.zip "$BASE_URL/lake_centerline.shp.zip"
+
+      - name: Generate Zoom 15 ONLY (with max memory)
+        run: |
+          java -Xmx8g -Xms4g -jar planetiler.jar \
+            --download=false \
+            --osm-path=iran.osm.pbf \
+            --minzoom=15 \
+            --maxzoom=15 \
+            --output=tiles_15 \
+            --tile-compression=none \
+            --force \
+            --threads=2
+
+      - name: Bundle zoom 15 tiles
+        run: tar -czf tiles-15.tar.gz tiles_15/
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tiles-15-complete
+          path: tiles-15.tar.gz
+          retention-days: 1
