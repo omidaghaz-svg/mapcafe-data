@@ -33,13 +33,13 @@
 
 ```
 iran-latest.osm.pbf  (۲۲۹MB، ۲۷M گره)
-        │  osmium tags-filter  ← فیلتر سریع C++
+        │  osmium tags-filter  (فیلتر سریع C++)
         ▼
-candidates.osm.pbf   (~۵۰٬۳۳۱ گره / ۳٬۳۴۳ way / ۱۶۲ relation)
-        │  osmium add-locations-to-ways  ← تزریق مختصات گره‌ها داخل wayها
+candidates.osm.pbf   (~۵۴٬۸۹۲ گره / ۳٬۸۷۰ way / ۱۶۴ relation)
+        │  osmium add-locations-to-ways  (تزریق مختصات گره‌ها داخل wayها)
         ▼
 candidates-loc.osm.pbf
-        │  python extract-cafes.py --self-test   ← قفل‌کردن قواعد طبقه‌بندی
+        │  python extract-cafes.py --self-test   (قفل‌کردن قواعد طبقه‌بندی)
         │  python extract-cafes.py
         ▼
 cafes.json.gz        (~۸۶۰KB ≈ ۱۸٬۹۴۰ مکان، هر مکان با فهرست `domains`)
