@@ -232,13 +232,16 @@ FASTFOOD_NAME_KEYWORDS = (
     "برگر",       # برگر، همبرگر، چیزبرگر، برگرلند
     "هاتداگ",     # هات‌داگ و هات داگ
     "فستفود",     # فست فود و فست‌فود
+    "سوخاری",     # مرغ سوخاری و سوخاری کیلویی (غذای آمادهٔ بیرون‌بر)
     "دونر",       # دونر، دونرکباب، دونر گاردن
     "döner",
     "sandwich", "falafel", "shawarma", "pizza", "burger", "hotdog", "doner",
+    "wings",
 )
 # «دنر» (بدون واو) املای رایج دیگری است که فقط با تطبیق **مرزکلمه‌ای** سنجیده
 # می‌شود تا در واژه‌های دیگر ناخواسته تطبیق نشود (شاهد داده: «دنر ترک»).
-FASTFOOD_NAME_TOKEN_KEYWORDS = ("دنر",)
+# «وینگ» هم مرزکلمه‌ای است (شاهد داده: «وینگ‌استاپ») تا با «وینگر» قاطی نشود.
+FASTFOOD_NAME_TOKEN_KEYWORDS = ("دنر", "وینگ")
 # نام‌هایی که **محصول نانوایی**اند، نه فست‌فود: «نان ساندویچی» یعنی نانِ مخصوص
 # ساندویچ (کالای نانوایی)، نه مغازهٔ ساندویچی. این‌ها از دامنهٔ فست‌فود بیرون
 # می‌مانند (شاهد داده: «نان ساندویچی» با `amenity=biergarten`).
@@ -254,6 +257,23 @@ FASTFOOD_NAME_EXCLUDED = (
 # «رستوران» هم دارد (مثل «رستوران و فست فود پرک») کسب‌وکار **ترکیبی** است؛
 # پس روی هر دو نقشه می‌ماند (قاعدهٔ بند ۱۳).
 RESTAURANT_NAME_KEYWORDS = ("رستوران", "restaurant")
+# نام‌هایی که یعنی «غذاخوری نشسته/تشریفات»، نه فست‌فود. اگر نام مکان یکی از
+# این‌ها را داشته باشد، حتی با `cuisine` تماماً فست‌فود روی نقشهٔ رستوران
+# می‌ماند (شاهد داده: «رستوران قصر شهر» با `cuisine=pizza`، «تالار صابری»).
+SITDOWN_NAME_KEYWORDS = (
+    "تالار", "سفرهخانه", "آشپزخانه", "آشپزخونه", "پذیرایی",
+    "بریان", "بریانکده",
+)
+# توکن‌های `cuisine` که **بی‌ابهام** فست‌فودند. اگر همهٔ مقادیر `cuisine` یک
+# مکان زیرمجموعهٔ این فهرست باشد، مکان فست‌فود است؛ حتی اگر OSM آن را
+# `amenity=restaurant` ثبت کرده باشد (شاهد داده: «عطاویچ»، «تینو»، «شیلا»).
+# دو نکتهٔ مهم: (۱) `chicken` عمداً نیست؛ در ایران `cuisine=chicken` بیشتر یعنی
+# جوجه/مرغ سنتی (اکبرجوجه، مرغ بریان) که رستوران نشسته‌اند، نه سوخاری. (۲)
+# `doner`/`shawarma`/`kebab` هم عمداً نیستند؛ آن‌ها قلمروِ دامنهٔ کباب‌اند و
+# افزودنشان به فست‌فود قرارداد کباب را عوض می‌کرد.
+FASTFOOD_CUISINE_TOKENS = frozenset({
+    "pizza", "burger", "sandwich", "falafel", "hot_dog", "hotdog",
+})
 
 
 def tag_values(tags: dict, key: str) -> list:
@@ -496,7 +516,23 @@ def matching_domains(tags: dict) -> list:
             or name_has_token(tags, FASTFOOD_NAME_TOKEN_KEYWORDS)
         )
     )
-    if fastfood_by_name:
+    # فست‌فود cuisine‌محور (فقط روی `amenity=restaurant`): اگر **همهٔ** مقادیر
+    # cuisine از توکن‌های بی‌ابهام فست‌فود باشند (مثل «تینو» با
+    # `pizza;burger;sandwich`) مکان فست‌فود است. شرط `amenity=restaurant`
+    # عمدی است: هدف رفع اشتباهِ ثبتِ OSM در همین تگ است؛ کافه‌ای که
+    # `cuisine=pizza` دارد کافه می‌ماند و فست‌فود شمرده نمی‌شود.
+    # اگر نامش «غذاخوری نشسته» را اعلام کند (تالار/سفره‌خانه/آشپزخانه/پذیرایی/
+    # بریان) از این قاعده مستثناست؛ وگرنه «رستوران قصر شهر» با `cuisine=pizza`
+    # بیجا از نقشهٔ رستوران می‌رفت.
+    fastfood_by_cuisine = (
+        amenity == "restaurant"
+        and bool(cuisine)
+        and all(value in FASTFOOD_CUISINE_TOKENS for value in cuisine)
+        and not name_has_keyword(tags, SITDOWN_NAME_KEYWORDS)
+        and not name_has_keyword(tags, RESTAURANT_NAME_KEYWORDS)
+    )
+    fastfood_signal = fastfood_by_name or fastfood_by_cuisine
+    if fastfood_signal:
         found.add(DOMAIN_FASTFOOD)
     # کباب: تگ cuisine یا نام مکان (چون OSM برای جگرکی/کبابی تگ استاندارد ندارد).
     if ((has_amenity or is_food_poi) and cuisine_has_keyword(tags, KEBAB_CUISINE_KEYWORDS)) \
@@ -524,10 +560,11 @@ def matching_domains(tags: dict) -> list:
     # ثبت شده رستوران نیست. استثنا: کترینگ (زیرمجموعهٔ رستوران) و مکانی که
     # نامش صریحاً «رستوران» دارد (کسب‌وکار ترکیبی، مثل «رستوران و فست فود پرک»).
     if (
-        fastfood_by_name
+        fastfood_signal
         and DOMAIN_RESTAURANT in found
         and not is_catering
         and not name_has_keyword(tags, RESTAURANT_NAME_KEYWORDS)
+        and not name_has_keyword(tags, SITDOWN_NAME_KEYWORDS)
     ):
         found.discard(DOMAIN_RESTAURANT)
 
@@ -659,6 +696,36 @@ SELF_TEST_CASES = (
     ({"amenity": "restaurant", "name": "تالار شاهان (نیلا سابق)"}, ["restaurant"]),
     # «نان ساندویچی» محصول نانوایی است، نه ساندویچی.
     ({"amenity": "biergarten", "name": "نان ساندویچی"}, []),
+    # فست‌فود cuisine‌محور: برندهای پیتزا/برگر که نامشان کلیدواژه ندارد ولی
+    # cuisine‌شان تماماً فست‌فود است (شاهد داده: «عطاویچ»، «تینو»، «شیلا»).
+    ({"amenity": "restaurant", "name": "عطاویچ", "cuisine": "burger;sandwich"}, ["fastfood"]),
+    ({"amenity": "restaurant", "name": "تینو", "cuisine": "pizza;burger;sandwich"}, ["fastfood"]),
+    ({"amenity": "restaurant", "name": "خانه کورن داگ", "cuisine": "hot_dog"}, ["fastfood"]),
+    # گارد «نشسته‌خوری»: با cuisine تماماً فست‌فود هم رستوران می‌ماند چون نامش
+    # اعلام می‌کند رستوران/تالار/آشپزخانه/پذیرایی/بریان است.
+    ({"amenity": "restaurant", "name": "رستوران قصر شهر", "cuisine": "pizza"}, ["restaurant"]),
+    ({"amenity": "restaurant", "name": "تالار صابری", "cuisine": "pizza;burger"}, ["restaurant"]),
+    ({"amenity": "restaurant", "name": "آشپزخانه علی", "cuisine": "pizza"}, ["restaurant"]),
+    # گارد `amenity`: قاعدهٔ cuisine‌محور فقط روی `amenity=restaurant` است. کافه‌ای
+    # که `cuisine=pizza` دارد کافه می‌ماند و فست‌فود شمرده نمی‌شود.
+    ({"amenity": "cafe", "name": "کافه لونا", "cuisine": "pizza"}, ["cafe"]),
+    # کترینگ با cuisine فست‌فود هم زیرمجموعهٔ رستوران می‌ماند.
+    ({"amenity": "restaurant", "craft": "caterer", "name": "زودپز فود", "cuisine": "pizza"}, ["fastfood", "restaurant"]),
+    # «سوخاری» روی بستنی‌فروشی: کسب‌وکار ترکیبی، روی هر دو نقشه.
+    ({"amenity": "ice_cream", "name": "ابمیوه بستنی و سوخاری بلوط"}, ["juice_icecream", "fastfood"]),
+    ({"amenity": "restaurant", "name": "مرغ بریان", "cuisine": "chicken"}, ["tabbakh", "restaurant"]),
+    # گارد `chicken` سنتی: اکبرجوجه رستوران نشسته است، نه فست‌فود.
+    ({"amenity": "restaurant", "name": "اکبرجوجه", "cuisine": "chicken"}, ["restaurant"]),
+    # گارد کباب: `doner`/`shawarma` قلمروِ کباب است و بی‌نام به فست‌فود نمی‌رود
+    # (نامِ «دونر» از قبل کلیدواژهٔ فست‌فود است، پس هر دو دامنه را می‌گیرد).
+    ({"amenity": "restaurant", "cuisine": "doner"}, ["kebab", "restaurant"]),
+    ({"amenity": "restaurant", "name": "دونر ترک", "cuisine": "doner"}, ["kebab", "fastfood"]),
+    # «سوخاری» غذای آمادهٔ بیرون‌بر است (نقشهٔ رستوران از آن پاک می‌شود).
+    ({"amenity": "restaurant", "name": "سوخاری چی"}, ["fastfood"]),
+    ({"amenity": "restaurant", "name": "رستوران و مرغ سوخاری"}, ["fastfood", "restaurant"]),
+    ({"amenity": "restaurant", "name": "ویل برگر", "cuisine": "italian_pizza;hot_dog;pizza"}, ["fastfood"]),
+    # «وینگ‌استاپ» با تطبیق مرزکلمه‌ای «وینگ» فست‌فود است.
+    ({"amenity": "restaurant", "name": "وینگ‌استاپ", "cuisine": "chicken"}, ["fastfood"]),
     # روی هم‌افتادگی طباخی و کباب (طباخی‌های کباب‌دار).
     ({"amenity": "restaurant", "name": "دیزی و کبابی بیشه"}, ["tabbakh", "kebab", "restaurant"]),
     # کترینگ زیرمجموعهٔ رستوران.

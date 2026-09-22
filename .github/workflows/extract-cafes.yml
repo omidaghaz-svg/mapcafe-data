@@ -197,6 +197,8 @@ jobs:
             'n/name=*هاتداگ*' 'w/name=*هاتداگ*' 'r/name=*هاتداگ*' \
             'n/name=*هات داگ*' 'w/name=*هات داگ*' 'r/name=*هات داگ*' \
             'n/name=*فست*' 'w/name=*فست*' 'r/name=*فست*' \
+            'n/name=*سوخاری*' 'w/name=*سوخاری*' 'r/name=*سوخاری*' \
+            'n/name=*وینگ*' 'w/name=*وینگ*' 'r/name=*وینگ*' \
             'n/name=*pizza*' 'w/name=*pizza*' 'r/name=*pizza*' \
             'n/name=*burger*' 'w/name=*burger*' 'r/name=*burger*' \
             'n/name=*sandwich*' 'w/name=*sandwich*' 'r/name=*sandwich*' \
@@ -204,6 +206,7 @@ jobs:
             'n/name=*shawarma*' 'w/name=*shawarma*' 'r/name=*shawarma*' \
             'n/name=*hotdog*' 'w/name=*hotdog*' 'r/name=*hotdog*' \
             'n/name=*hot dog*' 'w/name=*hot dog*' 'r/name=*hot dog*' \
+            'n/name=*wings*' 'w/name=*wings*' 'r/name=*wings*' \
             'n/name=*doner*' 'w/name=*doner*' 'r/name=*doner*' \
             'n/name=*döner*' 'w/name=*döner*' 'r/name=*döner*' \
             -o candidates.osm.pbf --overwrite
