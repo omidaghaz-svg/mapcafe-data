@@ -216,6 +216,44 @@ CATERING_NAME_KEYWORDS = (
     "تهیهغذا",    # تهیه غذا (کترینگ خانگی)
     "پذیرایی",    # پذیرایی و کترینگ
 )
+# کلیدواژه‌های نام دامنهٔ **فست‌فود**. بخش بزرگی از ساندویچی/پیتزایی/برگری/
+# ساندویچی‌های OSM ایران با `amenity=restaurant` ثبت شده‌اند؛ نتیجه این بود که
+# روی نقشهٔ رستوران می‌افتادند و نقشهٔ فست‌فود خالی می‌ماند. این کلیدواژه‌ها
+# چنین مکانی را به دامنهٔ فست‌فود می‌برند و (به‌شرط نبودن واژهٔ «رستوران» در نام)
+# از نقشهٔ رستوران برمی‌دارند تا نقشهٔ رستوران فقط رستوران واقعی نشان دهد.
+# توجه: `normalize_name` فاصله/نیم‌فاصله را برمی‌دارد؛ پس «فست فود» و
+# «فست‌فود» هر دو یکسان تطبیق می‌شوند و برند «فستیز» ناخواسته گرفته نمی‌شود.
+FASTFOOD_NAME_KEYWORDS = (
+    "ساندویچ",    # ساندویچ، ساندویچی، ساندویچ‌فروشی
+    "ساندویج",    # املای رایج دیگر (شاهد داده: «ساندویج فروشی قاسمی»)
+    "فلافل",
+    "شاورما",
+    "پیتزا",      # پیتزا، پیتزافروشی، پیتزاچی، پیتزاکاملی
+    "برگر",       # برگر، همبرگر، چیزبرگر، برگرلند
+    "هاتداگ",     # هات‌داگ و هات داگ
+    "فستفود",     # فست فود و فست‌فود
+    "دونر",       # دونر، دونرکباب، دونر گاردن
+    "döner",
+    "sandwich", "falafel", "shawarma", "pizza", "burger", "hotdog", "doner",
+)
+# «دنر» (بدون واو) املای رایج دیگری است که فقط با تطبیق **مرزکلمه‌ای** سنجیده
+# می‌شود تا در واژه‌های دیگر ناخواسته تطبیق نشود (شاهد داده: «دنر ترک»).
+FASTFOOD_NAME_TOKEN_KEYWORDS = ("دنر",)
+# نام‌هایی که **محصول نانوایی**اند، نه فست‌فود: «نان ساندویچی» یعنی نانِ مخصوص
+# ساندویچ (کالای نانوایی)، نه مغازهٔ ساندویچی. این‌ها از دامنهٔ فست‌فود بیرون
+# می‌مانند (شاهد داده: «نان ساندویچی» با `amenity=biergarten`).
+FASTFOOD_NAME_EXCLUDED = (
+    "نانساندویچ",   # نان ساندویچی
+    "نانساندویج",   # نان ساندویجی
+    "نانپیتزا",     # نان پیتزایی
+    "نانبرگر",      # نان برگر
+    "نانهمبرگر",    # نان همبرگر
+    "نانهاتداگ",    # نان هات‌داگ
+)
+# نام‌هایی که صریحاً «رستوران» بودن را اعلام می‌کنند. مغازهٔ فست‌فودی که نامش
+# «رستوران» هم دارد (مثل «رستوران و فست فود پرک») کسب‌وکار **ترکیبی** است؛
+# پس روی هر دو نقشه می‌ماند (قاعدهٔ بند ۱۳).
+RESTAURANT_NAME_KEYWORDS = ("رستوران", "restaurant")
 
 
 def tag_values(tags: dict, key: str) -> list:
@@ -382,10 +420,20 @@ def matching_domains(tags: dict) -> list:
     - `kebab`: `amenity` موجود و cuisine شامل `kebab`/`koobideh`/`jigar`/`liver`
       و هم‌خانواده‌ها **یا** نام غذاخوری شامل کلیدواژه‌های کباب
       (کباب/جگرکی/جگر/دل و قلوه).
-    - `fastfood`: `amenity=fast_food`.
+    - `fastfood`: `amenity=fast_food` **یا** نام غذاخوری شامل کلیدواژه‌های
+      فست‌فود (ساندویچ/ساندویج/فلافل/شاورما/پیتزا/برگر/هات‌داگ/فست فود/دونر).
     - `restaurant`: `amenity=restaurant` **یا** تگ کترینگ
       (`shop=catering`/`amenity=catering`/`craft=caterer`) **یا** نام شامل
       کلیدواژه‌های کترینگ (کترینگ/کیترینگ/تهیه غذا/پذیرایی).
+
+    **تمیزکاری نقشهٔ رستوران (قاعدهٔ مهم):** OSM در ایران بسیاری از
+    ساندویچی/پیتزایی/برگری/فلافلی و مغازه‌های «فست فود» را
+    `amenity=restaurant` ثبت کرده است. چنین مکانی رستوران نیست و نباید روی
+    نقشهٔ رستوران بیاید؛ پس وقتی سیگنال نام فست‌فود وجود دارد، دامنهٔ
+    `restaurant` **برداشته** می‌شود. دو استثنا: (۱) مکان **کترینگ** (تگ یا نام
+    کترینگ/پذیرایی) زیرمجموعهٔ رستوران است و می‌ماند؛ (۲) مکانی که نامش صریحاً
+    واژهٔ «رستوران» را دارد، کسب‌وکار ترکیبی است و روی هر دو نقشه می‌ماند.
+    این قاعده به دامنهٔ `cafe`/`juice_icecream`/`kebab`/`tabbakh` دست نمی‌زند.
 
     **دو نکتهٔ دقتی:** (۱) نام‌ها با تطبیق زیررشته‌ای سنجیده می‌شوند تا شکل‌های
     صرفی («چلوکبابی»، «حلیم‌فروشی»، «آشپزی») گرفته شوند؛ اما کلیدواژه‌های کوتاه
@@ -438,6 +486,18 @@ def matching_domains(tags: dict) -> list:
         found.add(DOMAIN_RESTAURANT)
     if amenity == "fast_food":
         found.add(DOMAIN_FASTFOOD)
+    # فست‌فود نام‌محور: ساندویچی/پیتزایی/برگری که OSM آن را restaurant ثبت
+    # کرده هم فست‌فود است (نقشهٔ رستوران در پایان از این‌ها پاک می‌شود).
+    fastfood_by_name = (
+        is_food_poi
+        and not name_has_keyword(tags, FASTFOOD_NAME_EXCLUDED)
+        and (
+            name_has_keyword(tags, FASTFOOD_NAME_KEYWORDS)
+            or name_has_token(tags, FASTFOOD_NAME_TOKEN_KEYWORDS)
+        )
+    )
+    if fastfood_by_name:
+        found.add(DOMAIN_FASTFOOD)
     # کباب: تگ cuisine یا نام مکان (چون OSM برای جگرکی/کبابی تگ استاندارد ندارد).
     if ((has_amenity or is_food_poi) and cuisine_has_keyword(tags, KEBAB_CUISINE_KEYWORDS)) \
             or (is_food_poi and name_has_keyword(tags, KEBAB_NAME_KEYWORDS)):
@@ -451,9 +511,25 @@ def matching_domains(tags: dict) -> list:
             )):
         found.add(DOMAIN_TABBAKH)
     # کترینگ زیرمجموعهٔ رستوران است.
-    if shop in CATERING_SHOPS or amenity in CATERING_AMENITIES or craft in CATERING_CRAFTS \
-            or (is_food_poi and name_has_keyword(tags, CATERING_NAME_KEYWORDS)):
+    is_catering = (
+        shop in CATERING_SHOPS
+        or amenity in CATERING_AMENITIES
+        or craft in CATERING_CRAFTS
+        or (is_food_poi and name_has_keyword(tags, CATERING_NAME_KEYWORDS))
+    )
+    if is_catering:
         found.add(DOMAIN_RESTAURANT)
+
+    # تمیزکاری نقشهٔ رستوران: مغازهٔ فست‌فودی که با تگ اشتباه `amenity=restaurant`
+    # ثبت شده رستوران نیست. استثنا: کترینگ (زیرمجموعهٔ رستوران) و مکانی که
+    # نامش صریحاً «رستوران» دارد (کسب‌وکار ترکیبی، مثل «رستوران و فست فود پرک»).
+    if (
+        fastfood_by_name
+        and DOMAIN_RESTAURANT in found
+        and not is_catering
+        and not name_has_keyword(tags, RESTAURANT_NAME_KEYWORDS)
+    ):
+        found.discard(DOMAIN_RESTAURANT)
 
     return [name for name in DOMAIN_PRIORITY if name in found]
 
@@ -552,6 +628,37 @@ SELF_TEST_CASES = (
     ({"name": "گردنه دیزین", "ele": "2000", "mountain_pass": "yes"}, []),
     ({"amenity": "restaurant", "name": "رستوران سنتی دیزینو"}, ["restaurant"]),
     ({"amenity": "fast_food", "name": "دیزین ترک"}, ["fastfood"]),
+    # فست‌فود نام‌محور: OSM در ایران ساندویچی/پیتزایی/برگری را با
+    # `amenity=restaurant` ثبت می‌کند؛ چنین مکانی رستوران نیست و باید فقط روی
+    # نقشهٔ فست‌فود بیاید (نقشهٔ رستوران تمیز می‌ماند).
+    ({"amenity": "restaurant", "name": "ساندویچ بهارستان"}, ["fastfood"]),
+    ({"amenity": "restaurant", "name": "ساندویج فروشی قاسمی"}, ["fastfood"]),
+    ({"amenity": "restaurant", "name": "پیتزا فروشی آیلار"}, ["fastfood"]),
+    ({"amenity": "restaurant", "name": "فست فود شیلا"}, ["fastfood"]),
+    ({"amenity": "restaurant", "name": "فست‌فود دلستان"}, ["fastfood"]),
+    ({"amenity": "restaurant", "name": "خانه همبرگر"}, ["fastfood"]),
+    ({"amenity": "restaurant", "name": "فلافل جلیلی"}, ["fastfood"]),
+    ({"amenity": "restaurant", "name": "شاورما دمشق"}, ["fastfood"]),
+    ({"amenity": "restaurant", "name": "Haida Sandwich"}, ["fastfood"]),
+    ({"amenity": "restaurant", "name": "دنر ترک"}, ["fastfood"]),
+    # «دنر» (بدون واو) باید ترکیب ساندویچی‌وار بماند ولی رستوران نباشد.
+    ({"amenity": "restaurant", "name": "دنر پیتزا چلسی"}, ["fastfood"]),
+    # فست‌فود نام‌محور روی کافه: کافه می‌ماند و فست‌فود هم اضافه می‌شود.
+    ({"amenity": "cafe", "name": "کافه فست فود چت میت"}, ["cafe", "fastfood"]),
+    # مکان ترکیبی: نام صریحاً «رستوران» دارد، پس روی هر دو نقشه می‌ماند.
+    ({"amenity": "restaurant", "name": "رستوران و فست فود پرک"}, ["fastfood", "restaurant"]),
+    ({"amenity": "restaurant", "name": "پیتزا رستوران"}, ["fastfood", "restaurant"]),
+    # کترینگ زیرمجموعهٔ رستوران است و با نام فست‌فودی هم از رستوران نمی‌افتد.
+    ({"craft": "caterer", "name": "کترینگ فست فود رضوان"}, ["fastfood", "restaurant"]),
+    # دامنه‌های دیگر دست‌نخورده‌اند: کباب/طباخی بدون سیگنال فست‌فود.
+    ({"amenity": "restaurant", "name": "کباب پز"}, ["kebab", "restaurant"]),
+    ({"amenity": "restaurant", "name": "کله‌پاچه ساحل"}, ["tabbakh", "restaurant"]),
+    # گاردِ منفی: برند «فستیز» نباید فست‌فود شمرده شود، و «سابق» نباید با
+    # هیچ کلیدواژه‌ای تطبیق بخورد.
+    ({"amenity": "restaurant", "name": "کافه رستوران فستیز"}, ["restaurant"]),
+    ({"amenity": "restaurant", "name": "تالار شاهان (نیلا سابق)"}, ["restaurant"]),
+    # «نان ساندویچی» محصول نانوایی است، نه ساندویچی.
+    ({"amenity": "biergarten", "name": "نان ساندویچی"}, []),
     # روی هم‌افتادگی طباخی و کباب (طباخی‌های کباب‌دار).
     ({"amenity": "restaurant", "name": "دیزی و کبابی بیشه"}, ["tabbakh", "kebab", "restaurant"]),
     # کترینگ زیرمجموعهٔ رستوران.
