@@ -1,6 +1,7 @@
-name: Extract Cafe Places (OSM)
+name: Extract Food Map Places (OSM)
 
-# استخراج مکان‌های «خانوادهٔ کافه» از PBF ایران و انتشار گزیپ در ریلیز `places`.
+# استخراج «مکان‌های نقشه» خانوادهٔ غذا (کافه، رستوران، فست‌فود، کباب، طباخی،
+# آبمیوه و بستنی) از PBF ایران و انتشار گزیپ در ریلیز `places`.
 # مصرف‌کننده: دستور `map:import-cafes` روی سرور (دانلود + upsert).
 # این فایل باید در ریپوی `mapcafe-data` و در مسیر
 # `.github/workflows/extract-cafes.yml` قرار بگیرد (نه در mapto-app).
@@ -69,28 +70,117 @@ jobs:
           fi
           ls -lh iran.osm.pbf
 
-      # فیلتر C++: همهٔ عناصری که ممکن است عضو «مکان‌های نقشه» باشند
-      # (خانوادهٔ کافه + خانوادهٔ آبمیوه و بستنی، تا نقشهٔ اختصاصی آبمیوه/بستنی
-      # از همین استخراج تغذیه شود و نیازی به پیمایش دوبارهٔ PBF نباشد).
+      # فیلتر C++: همهٔ عناصری که ممکن است عضو «مکان‌های نقشه» خانوادهٔ غذا
+      # باشند (کافه/رستوران/فست‌فود/کباب/طباخی/آبمیوه و بستنی) تا همهٔ نقشه‌ها
+      # از همین استخراج تغذیه شوند و نیازی به پیمایش دوبارهٔ PBF نباشد.
       # پیش‌فرض tags-filter گره‌های ارجاع‌شدهٔ wayها و اعضای relationها را هم
       # به خروجی می‌افزاید، پس هندسهٔ کامل برای محاسبهٔ مرکز در دسترس است.
       # الگوهای *cafe* و *coffee* باید هر دو باشند: اولی cafe/cafe_restaurant و
       # دومی coffee_shop را می‌گیرد (coffee_shop شامل زیررشتهٔ «cafe» نیست).
       # الگوهای *juice*/*smoothie*/*ice_cream* هم برای دامنهٔ آبمیوه و بستنی
       # لازم‌اند (بیشتر آبمیوه‌فروشی‌های ایران `fast_food` با `cuisine=juice`اند).
+      # دامنه‌های رستوران و فست‌فود از همان `amenity` می‌آیند؛ الگوهای
+      # *kebab*/*koobideh*/*jigar*/*liver*/*dizi*/*abgoosht*/*kale*/*sirab*/
+      # *shirdan*/*tabbakh*/*ash*/*halim*/*haleem*/*harissa*/*sholeh*/*biryani*/
+      # *kofta*/*koofteh*/*dolma* برای دامنه‌های کباب و طباخی‌اند (روی هر amenity).
+      # `amenity=food_court` هم لازم است، چون بعضی آشکده‌ها/غذاخوری‌های سنتی با
+      # همین amenity ثبت شده‌اند و از الگوهای بالا بیرون می‌ماندند.
+      # تگ‌های کترینگ (`shop=catering`، `amenity=catering`، `craft=caterer`)
+      # هم برای زیرمجموعهٔ رستوران لازم‌اند؛ بعضی از این‌ها هیچ `amenity` دیگری
+      # ندارند و بدون این الگوها از دست می‌رفتند.
+      # کلید `food=*` و cuisineهای فارسیِ آش/حلیم/طباخی هم لازم‌اند: بعضی
+      # آشکده‌ها و حلیم‌فروشی‌ها فقط با همین‌ها ثبت شده‌اند و هیچ `amenity`/
+      # `shop` ندارند (مثل «آشکده شامار» و «حلیم و عدسی کرمی»).
+      # در پایان، الگوهای **نام‌محور** برای کباب/طباخی/کترینگ می‌آیند: بعضی
+      # مکان‌ها حتی cuisine هم ندارند و تنها سرنخ، نامشان است (مثل «آشکده شامار»
+      # با `cuisine=regional` و «حلیم و عدسی کرمی» با `cuisine=breakfast`).
+      # این الگوها فقط «کاندید» می‌سازند؛ طبقه‌بندی نهایی و ردِ موارد نامرتبط
+      # (مثل «آشپزخانه» برند رستوران یا «کوچه آشتی کنان») کار پایتون است.
       - name: Filter candidate elements (fast C++ pass)
         run: |
           osmium tags-filter iran.osm.pbf \
-            'n/amenity=cafe,restaurant,fast_food,ice_cream,juice_bar' \
-            'w/amenity=cafe,restaurant,fast_food,ice_cream,juice_bar' \
-            'r/amenity=cafe,restaurant,fast_food,ice_cream,juice_bar' \
+            'n/amenity=cafe,restaurant,fast_food,ice_cream,juice_bar,food_court,bbq,biergarten' \
+            'w/amenity=cafe,restaurant,fast_food,ice_cream,juice_bar,food_court,bbq,biergarten' \
+            'r/amenity=cafe,restaurant,fast_food,ice_cream,juice_bar,food_court,bbq,biergarten' \
             'n/shop=coffee' 'w/shop=coffee' 'r/shop=coffee' \
             'n/shop=ice_cream,juice' 'w/shop=ice_cream,juice' 'r/shop=ice_cream,juice' \
+            'n/shop=deli' 'w/shop=deli' 'r/shop=deli' \
+            'n/shop=catering' 'w/shop=catering' 'r/shop=catering' \
+            'n/amenity=catering' 'w/amenity=catering' 'r/amenity=catering' \
+            'n/craft=caterer,catering' 'w/craft=caterer,catering' 'r/craft=caterer,catering' \
             'n/cuisine=*cafe*' 'w/cuisine=*cafe*' 'r/cuisine=*cafe*' \
             'n/cuisine=*coffee*' 'w/cuisine=*coffee*' 'r/cuisine=*coffee*' \
             'n/cuisine=*juice*' 'w/cuisine=*juice*' 'r/cuisine=*juice*' \
             'n/cuisine=*smoothie*' 'w/cuisine=*smoothie*' 'r/cuisine=*smoothie*' \
             'n/cuisine=*ice_cream*' 'w/cuisine=*ice_cream*' 'r/cuisine=*ice_cream*' \
+            'n/cuisine=*kebab*' 'w/cuisine=*kebab*' 'r/cuisine=*kebab*' \
+            'n/cuisine=*koobideh*' 'w/cuisine=*koobideh*' 'r/cuisine=*koobideh*' \
+            'n/cuisine=*jigar*' 'w/cuisine=*jigar*' 'r/cuisine=*jigar*' \
+            'n/cuisine=*liver*' 'w/cuisine=*liver*' 'r/cuisine=*liver*' \
+            'n/cuisine=*doner*' 'w/cuisine=*doner*' 'r/cuisine=*doner*' \
+            'n/cuisine=*shawarma*' 'w/cuisine=*shawarma*' 'r/cuisine=*shawarma*' \
+            'n/cuisine=*dizi*' 'w/cuisine=*dizi*' 'r/cuisine=*dizi*' \
+            'n/cuisine=*abgoosht*' 'w/cuisine=*abgoosht*' 'r/cuisine=*abgoosht*' \
+            'n/cuisine=*abgusht*' 'w/cuisine=*abgusht*' 'r/cuisine=*abgusht*' \
+            'n/cuisine=*kale_pache*' 'w/cuisine=*kale_pache*' 'r/cuisine=*kale_pache*' \
+            'n/cuisine=*kalle_pache*' 'w/cuisine=*kalle_pache*' 'r/cuisine=*kalle_pache*' \
+            'n/cuisine=*kaleh_pache*' 'w/cuisine=*kaleh_pache*' 'r/cuisine=*kaleh_pache*' \
+            'n/cuisine=*sirab*' 'w/cuisine=*sirab*' 'r/cuisine=*sirab*' \
+            'n/cuisine=*shirdan*' 'w/cuisine=*shirdan*' 'r/cuisine=*shirdan*' \
+            'n/cuisine=*tabbakh*' 'w/cuisine=*tabbakh*' 'r/cuisine=*tabbakh*' \
+            'n/cuisine=*ash*' 'w/cuisine=*ash*' 'r/cuisine=*ash*' \
+            'n/cuisine=*halim*' 'w/cuisine=*halim*' 'r/cuisine=*halim*' \
+            'n/cuisine=*haleem*' 'w/cuisine=*haleem*' 'r/cuisine=*haleem*' \
+            'n/cuisine=*harissa*' 'w/cuisine=*harissa*' 'r/cuisine=*harissa*' \
+            'n/cuisine=*sholeh*' 'w/cuisine=*sholeh*' 'r/cuisine=*sholeh*' \
+            'n/cuisine=*shole*' 'w/cuisine=*shole*' 'r/cuisine=*shole*' \
+            'n/cuisine=*biryani*' 'w/cuisine=*biryani*' 'r/cuisine=*biryani*' \
+            'n/cuisine=*beriyani*' 'w/cuisine=*beriyani*' 'r/cuisine=*beriyani*' \
+            'n/cuisine=*kofta*' 'w/cuisine=*kofta*' 'r/cuisine=*kofta*' \
+            'n/cuisine=*kofteh*' 'w/cuisine=*kofteh*' 'r/cuisine=*kofteh*' \
+            'n/cuisine=*koofteh*' 'w/cuisine=*koofteh*' 'r/cuisine=*koofteh*' \
+            'n/cuisine=*dolma*' 'w/cuisine=*dolma*' 'r/cuisine=*dolma*' \
+            'n/food=*' 'w/food=*' 'r/food=*' \
+            'n/cuisine=*آش*' 'w/cuisine=*آش*' 'r/cuisine=*آش*' \
+            'n/cuisine=*حلیم*' 'w/cuisine=*حلیم*' 'r/cuisine=*حلیم*' \
+            'n/cuisine=*شله*' 'w/cuisine=*شله*' 'r/cuisine=*شله*' \
+            'n/cuisine=*بریانی*' 'w/cuisine=*بریانی*' 'r/cuisine=*بریانی*' \
+            'n/cuisine=*کوفته*' 'w/cuisine=*کوفته*' 'r/cuisine=*کوفته*' \
+            'n/cuisine=*هریسه*' 'w/cuisine=*هریسه*' 'r/cuisine=*هریسه*' \
+            'n/cuisine=*دلمه*' 'w/cuisine=*دلمه*' 'r/cuisine=*دلمه*' \
+            'n/cuisine=*عدسی*' 'w/cuisine=*عدسی*' 'r/cuisine=*عدسی*' \
+            'n/cuisine=*طباخی*' 'w/cuisine=*طباخی*' 'r/cuisine=*طباخی*' \
+            'n/cuisine=*کله*' 'w/cuisine=*کله*' 'r/cuisine=*کله*' \
+            'n/cuisine=*دیزی*' 'w/cuisine=*دیزی*' 'r/cuisine=*دیزی*' \
+            'n/cuisine=*آبگوشت*' 'w/cuisine=*آبگوشت*' 'r/cuisine=*آبگوشت*' \
+            'n/cuisine=*سیراب*' 'w/cuisine=*سیراب*' 'r/cuisine=*سیراب*' \
+            'n/cuisine=*شیردان*' 'w/cuisine=*شیردان*' 'r/cuisine=*شیردان*' \
+            'n/cuisine=*شوربا*' 'w/cuisine=*شوربا*' 'r/cuisine=*شوربا*' \
+            'n/name=*آش*' 'w/name=*آش*' 'r/name=*آش*' \
+            'n/name=*حلیم*' 'w/name=*حلیم*' 'r/name=*حلیم*' \
+            'n/name=*هلیم*' 'w/name=*هلیم*' 'r/name=*هلیم*' \
+            'n/name=*شله*' 'w/name=*شله*' 'r/name=*شله*' \
+            'n/name=*بریانی*' 'w/name=*بریانی*' 'r/name=*بریانی*' \
+            'n/name=*کوفته*' 'w/name=*کوفته*' 'r/name=*کوفته*' \
+            'n/name=*هریسه*' 'w/name=*هریسه*' 'r/name=*هریسه*' \
+            'n/name=*دلمه*' 'w/name=*دلمه*' 'r/name=*دلمه*' \
+            'n/name=*عدسی*' 'w/name=*عدسی*' 'r/name=*عدسی*' \
+            'n/name=*شوربا*' 'w/name=*شوربا*' 'r/name=*شوربا*' \
+            'n/name=*پاچه*' 'w/name=*پاچه*' 'r/name=*پاچه*' \
+            'n/name=*دیزی*' 'w/name=*دیزی*' 'r/name=*دیزی*' \
+            'n/name=*آبگوشت*' 'w/name=*آبگوشت*' 'r/name=*آبگوشت*' \
+            'n/name=*سیراب*' 'w/name=*سیراب*' 'r/name=*سیراب*' \
+            'n/name=*شیردان*' 'w/name=*شیردان*' 'r/name=*شیردان*' \
+            'n/name=*کله*' 'w/name=*کله*' 'r/name=*کله*' \
+            'n/name=*طباخ*' 'w/name=*طباخ*' 'r/name=*طباخ*' \
+            'n/name=*کباب*' 'w/name=*کباب*' 'r/name=*کباب*' \
+            'n/name=*جگر*' 'w/name=*جگر*' 'r/name=*جگر*' \
+            'n/name=*دونر*' 'w/name=*دونر*' 'r/name=*دونر*' \
+            'n/name=*کوبیده*' 'w/name=*کوبیده*' 'r/name=*کوبیده*' \
+            'n/name=*دلوقلوه*' 'w/name=*دلوقلوه*' 'r/name=*دلوقلوه*' \
+            'n/name=*کترینگ*' 'w/name=*کترینگ*' 'r/name=*کترینگ*' \
+            'n/name=*کیترینگ*' 'w/name=*کیترینگ*' 'r/name=*کیترینگ*' \
+            'n/name=*پذیرایی*' 'w/name=*پذیرایی*' 'r/name=*پذیرایی*' \
             -o candidates.osm.pbf --overwrite
           osmium fileinfo -e candidates.osm.pbf | grep -E "Number of (nodes|ways|relations)"
 
@@ -99,7 +189,12 @@ jobs:
           osmium add-locations-to-ways candidates.osm.pbf \
             -o candidates-loc.osm.pbf --overwrite
 
-      - name: Extract cafe places
+      # خودآزمون طبقه‌بندی پیش از استخراج: اگر قاعده‌ای اشتباه عوض شده باشد،
+      # اجرا همین‌جا شکست می‌خورد و نسخهٔ سالم قبلی روی سرور دست‌نخورده می‌ماند.
+      - name: Verify classification rules (self-test)
+        run: python extract-cafes.py --self-test
+
+      - name: Extract food map places
         run: python extract-cafes.py candidates-loc.osm.pbf cafes.json.gz
 
       - name: Prepare release notes
@@ -112,13 +207,27 @@ jobs:
               payload = json.load(handle)
 
           kinds = Counter(place['osm_type'] for place in payload['places'])
-          domains = Counter(place['domain'] for place in payload['places'])
-          print('مکان‌های نقشه (کافه + آبمیوه و بستنی) استخراج‌شده از OpenStreetMap ایران.')
+          domains = Counter()
+          for place in payload['places']:
+              # سازگاری عقب‌رو: اگر `domains` نبود، از `domain` تک‌مقداری بخوان.
+              for name in place.get('domains', [place['domain']]):
+                  domains[name] += 1
+          labels = {
+              'cafe': 'کافه',
+              'restaurant': 'رستوران',
+              'fastfood': 'فست‌فود',
+              'kebab': 'کباب',
+              'tabbakh': 'طباخی',
+              'juice_icecream': 'آبمیوه و بستنی',
+          }
+          print('مکان‌های نقشهٔ خانوادهٔ غذا استخراج‌شده از OpenStreetMap ایران.')
           print()
           print(f"- زمان تولید: {payload['generated_at']}")
           print(f"- تعداد کل: {len(payload['places'])}")
           print(f"- گره: {kinds['node']} | way: {kinds['way']} | relation: {kinds['relation']}")
-          print(f"- دامنهٔ کافه: {domains['cafe']} | دامنهٔ آبمیوه و بستنی: {domains['juice_icecream']}")
+          print('- شمارش دامنه‌ها (مکان ترکیبی در هر دامنه جداگانه شمرده می‌شود):')
+          for name, label in labels.items():
+              print(f"    - {label} ({name}): {domains[name]}")
           print()
           print('منبع داده: Geofabrik iran-latest.osm.pbf — مجوز ODbL')
           PY
@@ -132,7 +241,7 @@ jobs:
           # عمومی سرور کار کند؛ حالت draft برای این دارایی مناسب نیست).
           if ! gh release view places &>/dev/null; then
             gh release create places \
-              --title "Map Places (OSM Cafes)" \
+              --title "Map Places (OSM Food Family)" \
               --notes-file release-notes.md \
               --latest=false
           else
