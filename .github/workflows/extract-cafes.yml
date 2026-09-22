@@ -245,6 +245,10 @@ jobs:
               --notes-file release-notes.md \
               --latest=false
           else
-            gh release edit places --notes-file release-notes.md
+            # عنوان هم هر بار یکسان‌سازی می‌شود تا ریلیزِ ساختهٔ نسخهٔ قدیمی
+            # («OSM Cafes») با محتوای شش‌دامنه‌ای جدید ناهم‌نام نماند.
+            gh release edit places \
+              --title "Map Places (OSM Food Family)" \
+              --notes-file release-notes.md
           fi
           gh release upload places cafes.json.gz --clobber
