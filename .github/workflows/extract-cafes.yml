@@ -1,0 +1,141 @@
+name: Extract Cafe Places (OSM)
+
+# استخراج مکان‌های «خانوادهٔ کافه» از PBF ایران و انتشار گزیپ در ریلیز `places`.
+# مصرف‌کننده: دستور `map:import-cafes` روی سرور (دانلود + upsert).
+# این فایل باید در ریپوی `mapcafe-data` و در مسیر
+# `.github/workflows/extract-cafes.yml` قرار بگیرد (نه در mapto-app).
+#
+# خط لوله:
+#   ۱. osmium tags-filter  → فیلتر سریع C++ روی ۲۷ میلیون گره (چند ثانیه)
+#   ۲. osmium add-locations-to-ways → تزریق مختصات گره‌ها داخل wayها
+#   ۳. python extract-cafes.py → پاس پایتونی فقط روی فایل کوچک (کسری از ثانیه)
+# بدون مراحل ۱ و ۲، اجرای پایتون روی PBF کامل ایران بیش از ۱۵ دقیقه طول می‌کشد.
+
+on:
+  schedule:
+    - cron: '0 3 * * 1' # هر دوشنبه ساعت ۳ بامداد UTC
+  workflow_dispatch:
+    inputs:
+      refresh_osm:
+        description: 'دانلود تازهٔ PBF ایران (نادیده‌گرفتن کش هفتهٔ جاری)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: write # لازم برای ساخت ریلیز و آپلود دارایی
+
+jobs:
+  extract:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install osmium (CLI + Python bindings)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends osmium-tool
+          osmium --version
+          pip install osmium==4.3.1
+
+      # کلید کش هفتگی است: هفتهٔ جاری از کش استفاده می‌کند و هفتهٔ بعد حتماً
+      # دادهٔ تازه دانلود می‌شود (بدون restore-keys تا داده کهنه نماند).
+      - name: Compute week stamp
+        id: stamp
+        run: echo "week=$(date -u +%Y-%V)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache Iran OSM data
+        uses: actions/cache@v4
+        with:
+          path: iran.osm.pbf
+          key: iran-osm-pbf-${{ steps.stamp.outputs.week }}
+
+      - name: Download OSM data (if not cached)
+        run: |
+          if [ "${{ inputs.refresh_osm }}" = "true" ]; then
+            rm -f iran.osm.pbf
+          fi
+          if [ ! -f iran.osm.pbf ]; then
+            curl -fsSL --retry 3 --retry-delay 5 \
+              -o iran.osm.pbf \
+              https://download.geofabrik.de/asia/iran-latest.osm.pbf
+          fi
+          ls -lh iran.osm.pbf
+
+      # فیلتر C++: همهٔ عناصری که ممکن است عضو «مکان‌های نقشه» باشند
+      # (خانوادهٔ کافه + خانوادهٔ آبمیوه و بستنی، تا نقشهٔ اختصاصی آبمیوه/بستنی
+      # از همین استخراج تغذیه شود و نیازی به پیمایش دوبارهٔ PBF نباشد).
+      # پیش‌فرض tags-filter گره‌های ارجاع‌شدهٔ wayها و اعضای relationها را هم
+      # به خروجی می‌افزاید، پس هندسهٔ کامل برای محاسبهٔ مرکز در دسترس است.
+      # الگوهای *cafe* و *coffee* باید هر دو باشند: اولی cafe/cafe_restaurant و
+      # دومی coffee_shop را می‌گیرد (coffee_shop شامل زیررشتهٔ «cafe» نیست).
+      # الگوهای *juice*/*smoothie*/*ice_cream* هم برای دامنهٔ آبمیوه و بستنی
+      # لازم‌اند (بیشتر آبمیوه‌فروشی‌های ایران `fast_food` با `cuisine=juice`اند).
+      - name: Filter candidate elements (fast C++ pass)
+        run: |
+          osmium tags-filter iran.osm.pbf \
+            'n/amenity=cafe,restaurant,fast_food,ice_cream,juice_bar' \
+            'w/amenity=cafe,restaurant,fast_food,ice_cream,juice_bar' \
+            'r/amenity=cafe,restaurant,fast_food,ice_cream,juice_bar' \
+            'n/shop=coffee' 'w/shop=coffee' 'r/shop=coffee' \
+            'n/shop=ice_cream,juice' 'w/shop=ice_cream,juice' 'r/shop=ice_cream,juice' \
+            'n/cuisine=*cafe*' 'w/cuisine=*cafe*' 'r/cuisine=*cafe*' \
+            'n/cuisine=*coffee*' 'w/cuisine=*coffee*' 'r/cuisine=*coffee*' \
+            'n/cuisine=*juice*' 'w/cuisine=*juice*' 'r/cuisine=*juice*' \
+            'n/cuisine=*smoothie*' 'w/cuisine=*smoothie*' 'r/cuisine=*smoothie*' \
+            'n/cuisine=*ice_cream*' 'w/cuisine=*ice_cream*' 'r/cuisine=*ice_cream*' \
+            -o candidates.osm.pbf --overwrite
+          osmium fileinfo -e candidates.osm.pbf | grep -E "Number of (nodes|ways|relations)"
+
+      - name: Embed way node locations
+        run: |
+          osmium add-locations-to-ways candidates.osm.pbf \
+            -o candidates-loc.osm.pbf --overwrite
+
+      - name: Extract cafe places
+        run: python extract-cafes.py candidates-loc.osm.pbf cafes.json.gz
+
+      - name: Prepare release notes
+        run: |
+          python - <<'PY' > release-notes.md
+          import gzip, json
+          from collections import Counter
+
+          with gzip.open('cafes.json.gz', 'rt', encoding='utf-8') as handle:
+              payload = json.load(handle)
+
+          kinds = Counter(place['osm_type'] for place in payload['places'])
+          domains = Counter(place['domain'] for place in payload['places'])
+          print('مکان‌های نقشه (کافه + آبمیوه و بستنی) استخراج‌شده از OpenStreetMap ایران.')
+          print()
+          print(f"- زمان تولید: {payload['generated_at']}")
+          print(f"- تعداد کل: {len(payload['places'])}")
+          print(f"- گره: {kinds['node']} | way: {kinds['way']} | relation: {kinds['relation']}")
+          print(f"- دامنهٔ کافه: {domains['cafe']} | دامنهٔ آبمیوه و بستنی: {domains['juice_icecream']}")
+          print()
+          print('منبع داده: Geofabrik iran-latest.osm.pbf — مجوز ODbL')
+          PY
+          cat release-notes.md
+
+      - name: Upload to existing 'places' release (replace old)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # اطمینان از وجود ریلیز places (اگر نبود، منتشرشده بساز تا دانلود
+          # عمومی سرور کار کند؛ حالت draft برای این دارایی مناسب نیست).
+          if ! gh release view places &>/dev/null; then
+            gh release create places \
+              --title "Map Places (OSM Cafes)" \
+              --notes-file release-notes.md \
+              --latest=false
+          else
+            gh release edit places --notes-file release-notes.md
+          fi
+          gh release upload places cafes.json.gz --clobber
