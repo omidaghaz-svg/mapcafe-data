@@ -79,7 +79,8 @@ jobs:
       # دومی coffee_shop را می‌گیرد (coffee_shop شامل زیررشتهٔ «cafe» نیست).
       # الگوهای *juice*/*smoothie*/*ice_cream* هم برای دامنهٔ آبمیوه و بستنی
       # لازم‌اند (بیشتر آبمیوه‌فروشی‌های ایران `fast_food` با `cuisine=juice`اند).
-      # دامنه‌های رستوران و فست‌فود از همان `amenity` می‌آیند؛ الگوهای
+      # دامنهٔ رستوران از همان `amenity` می‌آید و فست‌فود از `amenity=fast_food`
+      # و **نام‌محور** (پایین)؛ الگوهای
       # *kebab*/*koobideh*/*jigar*/*liver*/*dizi*/*abgoosht*/*kale*/*sirab*/
       # *shirdan*/*tabbakh*/*ash*/*halim*/*haleem*/*harissa*/*sholeh*/*biryani*/
       # *kofta*/*koofteh*/*dolma* برای دامنه‌های کباب و طباخی‌اند (روی هر amenity).
@@ -91,11 +92,17 @@ jobs:
       # کلید `food=*` و cuisineهای فارسیِ آش/حلیم/طباخی هم لازم‌اند: بعضی
       # آشکده‌ها و حلیم‌فروشی‌ها فقط با همین‌ها ثبت شده‌اند و هیچ `amenity`/
       # `shop` ندارند (مثل «آشکده شامار» و «حلیم و عدسی کرمی»).
-      # در پایان، الگوهای **نام‌محور** برای کباب/طباخی/کترینگ می‌آیند: بعضی
+      # در پایان، الگوهای **نام‌محور** برای کباب/طباخی/کترینگ/فست‌فود می‌آیند: بعضی
       # مکان‌ها حتی cuisine هم ندارند و تنها سرنخ، نامشان است (مثل «آشکده شامار»
       # با `cuisine=regional` و «حلیم و عدسی کرمی» با `cuisine=breakfast`).
       # این الگوها فقط «کاندید» می‌سازند؛ طبقه‌بندی نهایی و ردِ موارد نامرتبط
       # (مثل «آشپزخانه» برند رستوران یا «کوچه آشتی کنان») کار پایتون است.
+      # الگوهای نام‌محور فست‌فود لازم‌اند چون بعضی ساندویچی/پیتزایی/فلافلی/برگری
+      # هیچ `amenity`/`shop` غذایی ندارند و فقط با `cuisine` غیراستاندارد (مثل
+      # `regional`/`breakfast`) و نامشان ثبت شده‌اند؛ بدون این الگوها از دست
+      # می‌رفتند (شاهد واقعی: «فلافل کاکو» با `cuisine=regional` و «پیتزا پارک»).
+      # `*فست*` عمداً کوتاه است تا هم «فست فود» و هم «فست‌فود» گرفته شود؛
+      # نام‌های نامرتبط (مثل «فستیوال») در پایتون رد می‌شوند.
       - name: Filter candidate elements (fast C++ pass)
         run: |
           osmium tags-filter iran.osm.pbf \
@@ -181,6 +188,24 @@ jobs:
             'n/name=*کترینگ*' 'w/name=*کترینگ*' 'r/name=*کترینگ*' \
             'n/name=*کیترینگ*' 'w/name=*کیترینگ*' 'r/name=*کیترینگ*' \
             'n/name=*پذیرایی*' 'w/name=*پذیرایی*' 'r/name=*پذیرایی*' \
+            'n/name=*ساندویچ*' 'w/name=*ساندویچ*' 'r/name=*ساندویچ*' \
+            'n/name=*ساندویج*' 'w/name=*ساندویج*' 'r/name=*ساندویج*' \
+            'n/name=*فلافل*' 'w/name=*فلافل*' 'r/name=*فلافل*' \
+            'n/name=*شاورما*' 'w/name=*شاورما*' 'r/name=*شاورما*' \
+            'n/name=*پیتزا*' 'w/name=*پیتزا*' 'r/name=*پیتزا*' \
+            'n/name=*برگر*' 'w/name=*برگر*' 'r/name=*برگر*' \
+            'n/name=*هاتداگ*' 'w/name=*هاتداگ*' 'r/name=*هاتداگ*' \
+            'n/name=*هات داگ*' 'w/name=*هات داگ*' 'r/name=*هات داگ*' \
+            'n/name=*فست*' 'w/name=*فست*' 'r/name=*فست*' \
+            'n/name=*pizza*' 'w/name=*pizza*' 'r/name=*pizza*' \
+            'n/name=*burger*' 'w/name=*burger*' 'r/name=*burger*' \
+            'n/name=*sandwich*' 'w/name=*sandwich*' 'r/name=*sandwich*' \
+            'n/name=*falafel*' 'w/name=*falafel*' 'r/name=*falafel*' \
+            'n/name=*shawarma*' 'w/name=*shawarma*' 'r/name=*shawarma*' \
+            'n/name=*hotdog*' 'w/name=*hotdog*' 'r/name=*hotdog*' \
+            'n/name=*hot dog*' 'w/name=*hot dog*' 'r/name=*hot dog*' \
+            'n/name=*doner*' 'w/name=*doner*' 'r/name=*doner*' \
+            'n/name=*döner*' 'w/name=*döner*' 'r/name=*döner*' \
             -o candidates.osm.pbf --overwrite
           osmium fileinfo -e candidates.osm.pbf | grep -E "Number of (nodes|ways|relations)"
 
